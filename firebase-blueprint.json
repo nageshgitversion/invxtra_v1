@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user-specific settings and profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A financial transaction (income, expense, investment, or savings).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense", "investment", "savings"] },
+        "category": { "type": "string" },
+        "emoji": { "type": "string" },
+        "name": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "amount": { "type": "number" },
+        "note": { "type": "string" },
+        "linkedAcc": { "type": "string" },
+        "isRecurring": { "type": "boolean" },
+        "recurrence": { "type": "string", "enum": ["none", "daily", "weekly", "monthly", "yearly"] },
+        "lastProcessed": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "type", "category", "name", "date", "amount"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "A virtual or real financial account.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "type": { "type": "string", "enum": ["savings", "fd", "rd", "loan"] },
+        "name": { "type": "string" },
+        "amt": { "type": "number" },
+        "rate": { "type": "number" },
+        "bank": { "type": "string" },
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" },
+        "emi": { "type": "number" },
+        "emiday": { "type": "number" },
+        "goal": { "type": "number" },
+        "maturity": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "type", "name", "amt"]
+    },
+    "Holding": {
+      "title": "Holding",
+      "description": "An investment holding.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "type": { "type": "string" },
+        "name": { "type": "string" },
+        "invested": { "type": "number" },
+        "current": { "type": "number" },
+        "xirr": { "type": "number" },
+        "sip": { "type": "number" },
+        "note": { "type": "string" },
+        "units": { "type": "number" },
+        "nav": { "type": "number" },
+        "updatable": { "type": "boolean" },
+        "lastUpdated": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "type", "name", "invested"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "User's monthly wallet and budget envelopes.",
+      "type": "object",
+      "properties": {
+        "active": { "type": "boolean" },
+        "topup": { "type": "number" },
+        "balance": { "type": "number" },
+        "committed": { "type": "number" },
+        "free": { "type": "number" },
+        "envelopes": { "type": "object" }
+      },
+      "required": ["active", "balance", "committed", "free"]
+    },
+    "FamilyMember": {
+      "title": "Family Member",
+      "description": "A member of the user's family for collaborative tracking.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "contribution": { "type": "number" },
+        "color": { "type": "string" },
+        "initial": { "type": "string" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "FamilyGoal": {
+      "title": "Family Goal",
+      "description": "A shared family financial goal.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "target": { "type": "number" },
+        "saved": { "type": "number" },
+        "eta": { "type": "string" },
+        "contributions": { "type": "object" }
+      },
+      "required": ["uid", "name", "target"]
+    },
+    "Split": {
+      "title": "Split",
+      "description": "A split expense or debt tracking item.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "desc": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["owe_you", "you_owe"] },
+        "initial": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["uid", "name", "amount", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profile document."
+    },
+    "/transactions/{id}": {
+      "schema": "Transaction",
+      "description": "Global transactions collection, filtered by uid."
+    },
+    "/accounts/{id}": {
+      "schema": "Account",
+      "description": "Global accounts collection, filtered by uid."
+    },
+    "/holdings/{id}": {
+      "schema": "Holding",
+      "description": "Global holdings collection, filtered by uid."
+    },
+    "/wallets/{uid}": {
+      "schema": "Wallet",
+      "description": "User's monthly wallet document."
+    },
+    "/familyMembers/{id}": {
+      "schema": "FamilyMember",
+      "description": "Family members collection."
+    },
+    "/familyGoals/{id}": {
+      "schema": "FamilyGoal",
+      "description": "Family goals collection."
+    },
+    "/splits/{id}": {
+      "schema": "Split",
+      "description": "Split expenses collection."
+    }
+  }
+}

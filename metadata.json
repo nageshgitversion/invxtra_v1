@@ -1,0 +1,7 @@
+{
+  "name": "invxtra - Smart Money Management",
+  "description": "A comprehensive financial dashboard for tracking net worth, expenses, savings, and investments with AI-powered insights.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
