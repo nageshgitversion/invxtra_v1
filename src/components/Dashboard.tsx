@@ -6,7 +6,6 @@ import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
 import Modal from './Modal';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
-import MoneyCalendar from './MoneyCalendar';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -830,11 +829,6 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
           </div>
         </section>
       </div>
-
-      {/* Money Weather Calendar */}
-      <section>
-        <MoneyCalendar transactions={transactions} wallet={wallet} />
-      </section>
 
       {/* Quick Stats & AI Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

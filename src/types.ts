@@ -124,14 +124,3 @@ export interface Split {
   initial: string;
   color: string;
 }
-
-export interface SpendingFine {
-  id: string;
-  uid: string;
-  category: string;
-  limit: number;
-  fineAmount: number;
-  targetGoalId: string;
-  active: boolean;
-}
-

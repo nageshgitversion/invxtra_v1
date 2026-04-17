@@ -6,7 +6,6 @@ import { useFirebase } from '../lib/FirebaseProvider';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, increment, deleteDoc } from 'firebase/firestore';
 import Modal from './Modal';
-import ImportTransactions from './ImportTransactions';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { processRecurringTransactions } from '../lib/recurrence';
 
@@ -16,11 +15,10 @@ interface TransactionsProps {
 }
 
 export default function Transactions({ transactions, wallet }: TransactionsProps) {
-  const { user, accounts, holdings, fines } = useFirebase();
+  const { user, accounts, holdings } = useFirebase();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -150,53 +148,6 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
             });
           }
         }
-
-        // Evaluate Fines (Only for one-time expenses)
-        if (type === 'expense') {
-          const activeFines = fines?.filter(f => f.active && f.category.toLowerCase() === category.toLowerCase()) || [];
-          for (const fine of activeFines) {
-            // Check if this transaction pushes them over the limit
-            const currentMonth = date.slice(0, 7);
-            const currentMonthTx = transactions.filter(t => !t.isRecurring && t.type === 'expense' && t.category.toLowerCase() === category.toLowerCase() && t.date.startsWith(currentMonth));
-            const prevTotal = currentMonthTx.reduce((acc, t) => acc + Math.abs(t.amount), 0);
-            const newTotal = prevTotal + Math.abs(finalAmount);
-
-            // Apply fine if they just crossed the limit, OR if they are already over the limit (applies fine per transaction over limit)
-            if (newTotal > fine.limit) {
-              if (wallet && wallet.free >= fine.fineAmount) {
-                // 1. Log Fine Transaction
-                await addDoc(collection(db, 'transactions'), {
-                  uid: user.uid,
-                  name: `🚨 Spending Fine: Over limit on ${fine.category}`,
-                  amount: -fine.fineAmount, // It's treated as a savings outflow from wallet
-                  type: 'savings',
-                  category: 'Savings',
-                  date,
-                  emoji: '💸',
-                  isRecurring: false,
-                  recurrence: 'none',
-                  linkedAcc: 'wallet',
-                  createdAt: new Date().toISOString()
-                });
-
-                // 2. Deduct from wallet
-                const walletRef = doc(db, 'wallets', user.uid);
-                await updateDoc(walletRef, {
-                  balance: increment(-fine.fineAmount),
-                  free: increment(-fine.fineAmount)
-                });
-
-                // 3. Add to Goal
-                if (fine.targetGoalId) {
-                  const goalRef = doc(db, 'familyGoals', fine.targetGoalId);
-                  await updateDoc(goalRef, {
-                    saved: increment(fine.fineAmount)
-                  });
-                }
-              }
-            }
-          }
-        }
       }
 
       setIsAddModalOpen(false);
@@ -307,12 +258,6 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
             className="flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm"
           >
             <Mic size={14} /> Voice
-          </button>
-          <button 
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm"
-          >
-            Import CSV
           </button>
           <button 
             onClick={() => setIsAddModalOpen(true)}
@@ -562,12 +507,6 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
           </button>
         </form>
       </Modal>
-
-      <ImportTransactions 
-        isOpen={isImportModalOpen} 
-        onClose={() => setIsImportModalOpen(false)} 
-        onSuccess={() => {}} 
-      />
 
       {/* Delete Confirmation Modal */}
       <Modal

@@ -3,7 +3,6 @@ import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
 import { Transaction, Holding } from '../types';
 import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
 import { Heart, Coffee, Fingerprint, Zap, TrendingUp, ShieldCheck, Wallet, Activity } from 'lucide-react';
-import SubscriptionManager from './SubscriptionManager';
 
 interface AnalyticsProps {
   transactions: Transaction[];
@@ -161,8 +160,6 @@ export default function Analytics({ transactions, holdings }: AnalyticsProps) {
         <StatItem label="Total Savings" value={formatCurrency(Math.max(0, totalIncome - totalSpent))} color="text-purple-600" />
         <StatItem label="Savings Rate" value={`${savingsRate}%`} color="text-amber-600" />
       </div>
-
-      <SubscriptionManager transactions={transactions} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-card p-6 rounded-2xl">
