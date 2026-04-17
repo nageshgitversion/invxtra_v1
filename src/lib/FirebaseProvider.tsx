@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { Transaction, Holding, Account, Wallet, FamilyGoal, FamilyMember, Split } from '../types';
+import { Transaction, Holding, Account, Wallet, FamilyGoal, FamilyMember, Split, SpendingFine } from '../types';
 
 interface FirebaseContextType {
   user: User | null;
@@ -15,6 +15,7 @@ interface FirebaseContextType {
   familyGoals: FamilyGoal[];
   familyMembers: FamilyMember[];
   splits: Split[];
+  fines: SpendingFine[];
 }
 
 const FirebaseContext = createContext<FirebaseContextType | undefined>(undefined);
@@ -30,6 +31,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [familyGoals, setFamilyGoals] = useState<FamilyGoal[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [splits, setSplits] = useState<Split[]>([]);
+  const [fines, setFines] = useState<SpendingFine[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -63,6 +65,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setHoldings([]);
       setAccounts([]);
       setWallet(null);
+      setFines([]);
       return;
     }
 
@@ -125,6 +128,14 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setSplits(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Split)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'splits'));
 
+    const finesQuery = query(
+      collection(db, 'fines'),
+      where('uid', '==', user.uid)
+    );
+    const unsubFines = onSnapshot(finesQuery, (snapshot) => {
+      setFines(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SpendingFine)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'fines'));
+
     return () => {
       unsubTx();
       unsubHoldings();
@@ -133,6 +144,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubFamilyGoals();
       unsubFamilyMembers();
       unsubSplits();
+      unsubFines();
     };
   }, [user]);
 
@@ -147,7 +159,8 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       wallet,
       familyGoals,
       familyMembers,
-      splits
+      splits,
+      fines
     }}>
       {children}
     </FirebaseContext.Provider>

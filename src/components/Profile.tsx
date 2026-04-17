@@ -218,10 +218,10 @@ export default function Profile() {
           </div>
           
           <div className="space-y-2">
-            <PreferenceToggle label="Email Notifications" description="Receive weekly financial reports" defaultChecked />
-            <PreferenceToggle label="Push Notifications" description="Alerts for large transactions" defaultChecked />
-            <PreferenceToggle label="AI Insights" description="Get personalized tips from Gemini" defaultChecked />
-            <PreferenceToggle label="Biometric Login" description="Use FaceID or Fingerprint" />
+            <PreferenceToggle storageKey={`pref_email_${user?.uid}`} label="Email Notifications" description="Receive weekly financial reports" defaultChecked />
+            <PreferenceToggle storageKey={`pref_push_${user?.uid}`} label="Push Notifications" description="Alerts for large transactions" defaultChecked />
+            <PreferenceToggle storageKey={`pref_ai_${user?.uid}`} label="AI Insights" description="Get personalized tips from Gemini" defaultChecked />
+            <PreferenceToggle storageKey={`pref_bio_${user?.uid}`} label="Biometric Login" description="Use FaceID or Fingerprint" />
           </div>
         </div>
       </div>
@@ -229,9 +229,9 @@ export default function Profile() {
       {/* Support & Legal */}
       <div className="glass-card p-6 rounded-[32px] space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <SupportLink icon={Smartphone} label="Download App" />
-          <SupportLink icon={ExternalLink} label="Privacy Policy" />
-          <SupportLink icon={ExternalLink} label="Terms of Service" />
+          <SupportLink icon={Smartphone} label="Download App" onClick={() => alert('The invxtra mobile app is coming soon to iOS and Android!')} />
+          <SupportLink icon={ExternalLink} label="Privacy Policy" onClick={() => alert('Privacy Policy: All data is stored securely and encrypted.')} />
+          <SupportLink icon={ExternalLink} label="Terms of Service" onClick={() => alert('Terms of Service: By using invxtra, you agree to track your finances responsibly.')} />
         </div>
 
         {/* Danger Zone */}
@@ -308,8 +308,21 @@ function InfoRow({ label, value }: { label: string, value: string }) {
   );
 }
 
-function PreferenceToggle({ label, description, defaultChecked = false }: { label: string, description: string, defaultChecked?: boolean }) {
-  const [checked, setChecked] = React.useState(defaultChecked);
+function PreferenceToggle({ label, description, defaultChecked = false, storageKey }: { label: string, description: string, defaultChecked?: boolean, storageKey?: string }) {
+  const [checked, setChecked] = React.useState(() => {
+    if (storageKey) {
+      const val = localStorage.getItem(storageKey);
+      if (val !== null) return val === 'true';
+    }
+    return defaultChecked;
+  });
+
+  const toggle = () => {
+    const newVal = !checked;
+    setChecked(newVal);
+    if (storageKey) localStorage.setItem(storageKey, String(newVal));
+  };
+
   return (
     <div className="flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-colors">
       <div className="space-y-0.5">
@@ -317,7 +330,7 @@ function PreferenceToggle({ label, description, defaultChecked = false }: { labe
         <p className="text-[10px] text-slate-500 font-medium">{description}</p>
       </div>
       <button 
-        onClick={() => setChecked(!checked)}
+        onClick={toggle}
         className={cn(
           "w-12 h-6 rounded-full transition-all relative",
           checked ? "bg-indigo-600" : "bg-slate-200"
@@ -332,9 +345,9 @@ function PreferenceToggle({ label, description, defaultChecked = false }: { labe
   );
 }
 
-function SupportLink({ icon: Icon, label }: { icon: any, label: string }) {
+function SupportLink({ icon: Icon, label, onClick }: { icon: any, label: string, onClick?: () => void }) {
   return (
-    <button className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 transition-all group">
+    <button onClick={onClick} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 transition-all group">
       <div className="flex items-center gap-3">
         <Icon size={18} className="text-slate-400 group-hover:text-indigo-600" />
         <span className="text-sm font-bold">{label}</span>
