@@ -183,7 +183,7 @@ export async function processRecurringTransactions(
   }
 }
 
-function getNextOccurrence(lastDate: Date, frequency: RecurrenceFrequency): Date {
+export function getNextOccurrence(lastDate: Date, frequency: RecurrenceFrequency): Date {
   const next = new Date(lastDate);
   switch (frequency) {
     case 'daily':
