@@ -124,7 +124,8 @@ export async function chatWithInvxtra(
         You have access to the user's financial data: ${JSON.stringify(userData)}.
         ${priorityText}
         Provide personalized, encouraging, and accurate financial advice based on Indian regulations, tax laws (Old vs New Regime), and investment options (Mutual Funds, FD, RD, PPF, NPS, Gold, Real Estate).
-        Keep responses concise, professional yet friendly, and use emojis where appropriate. 🇮🇳`,
+        Keep responses concise, professional yet friendly, and use emojis where appropriate. 🇮🇳
+        IMPORTANT: If the user asks for a breakdown, chart, or visual representation of their data, you must output a specific tag like [PIE_CHART: {"data": [{"name":"Category","value":100}]}] exactly like this anywhere in your response, so the UI can render a live React chart. Do not wrap the JSON inside the tag with markdown block quotes.`,
       },
     });
 

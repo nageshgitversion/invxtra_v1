@@ -38,6 +38,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrence, setRecurrence] = useState<RecurrenceFrequency>('monthly');
+  const [showImpulseWarning, setShowImpulseWarning] = useState(false);
 
   const { 
     isListening, 
@@ -59,13 +60,20 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
     }
   }, [transcript, isAddModalOpen]);
 
-  const handleAddTransaction = async (e: React.FormEvent) => {
+  const handleAddTransaction = async (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
     if (!user || !name || !amount || isSubmitting) return;
 
+    const finalAmount = type === 'income' ? parseFloat(amount) : -Math.abs(parseFloat(amount));
+
+    if (type === 'expense' && Math.abs(finalAmount) >= 10000 && !showImpulseWarning) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      setShowImpulseWarning(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const finalAmount = type === 'income' ? parseFloat(amount) : -Math.abs(parseFloat(amount));
       const emojiMap: Record<string, string> = {
         income: '💰',
         expense: '💳',
@@ -199,6 +207,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
         }
       }
 
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([50]);
       setIsAddModalOpen(false);
       resetForm();
     } catch (err) {
@@ -221,6 +230,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
     setFundSource('wallet');
     setIsRecurring(false);
     setRecurrence('monthly');
+    setShowImpulseWarning(false);
   };
 
   const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
@@ -553,13 +563,40 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
             </div>
           )}
 
-          <button 
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 mt-4"
-          >
-            {isSubmitting ? "Saving..." : "Save Transaction"}
-          </button>
+          {showImpulseWarning ? (
+            <div className="bg-red-50 border border-red-200 p-4 rounded-2xl animate-in zoom-in duration-300 mt-4">
+              <h4 className="font-display font-black text-red-600 flex items-center gap-2 mb-2">
+                Anti-Impulse Warning
+              </h4>
+              <p className="text-sm text-red-800 font-medium mb-4">
+                You're about to spend ₹{Math.abs(parseFloat(amount)).toLocaleString('en-IN')}. This is a large expense that might impact your financial runway.
+              </p>
+              <div className="flex gap-2">
+                <button 
+                  type="button"
+                  onClick={() => setShowImpulseWarning(false)}
+                  className="flex-1 py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl text-sm"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={(e) => handleAddTransaction(e)}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl text-sm shadow-md shadow-red-200"
+                >
+                  Yes, I'm sure
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 mt-4"
+            >
+              {isSubmitting ? "Saving..." : "Save Transaction"}
+            </button>
+          )}
         </form>
       </Modal>
 

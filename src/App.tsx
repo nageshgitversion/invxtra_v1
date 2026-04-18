@@ -51,6 +51,7 @@ import Settings from './components/Settings';
 import Onboarding from './components/Onboarding';
 import WalletModal from './components/WalletModal';
 import Logo from './components/Logo';
+import CommandPalette from './components/CommandPalette';
 
 export default function App() {
   const { 
@@ -354,6 +355,7 @@ export default function App() {
         </div>
       </aside>
 
+      <CommandPalette />
       {/* Modals would be handled here */}
     </div>
   );

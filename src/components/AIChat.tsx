@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Send, Sparkles, User, Bot, Mic, MicOff, LayoutDashboard, Settings2, ShieldCheck, Briefcase, Calculator } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import { chatWithInvxtra } from '../services/geminiService';
 import { cn } from '../lib/utils';
@@ -199,11 +200,13 @@ export default function AIChat({ userData }: AIChatProps) {
                 ? "bg-indigo-600 text-white rounded-tr-none" 
                 : "bg-white text-slate-800 border border-indigo-50 rounded-tl-none"
             )}>
-              <div className="prose prose-sm prose-slate max-w-none">
-                <ReactMarkdown>
-                  {msg.text}
-                </ReactMarkdown>
-              </div>
+              {msg.role === 'user' ? (
+                <div className="prose prose-sm prose-slate max-w-none prose-invert">
+                  <ReactMarkdown>{msg.text}</ReactMarkdown>
+                </div>
+              ) : (
+                <GenerativeMessage text={msg.text} />
+              )}
             </div>
           </div>
         ))}
@@ -286,5 +289,54 @@ function PersonaButton({ active, onClick, icon, label }: { active: boolean, onCl
       {icon}
       <span className="text-[9px] font-black uppercase tracking-tighter">{label}</span>
     </button>
+  );
+}
+
+function GenerativeMessage({ text }: { text: string }) {
+  // Check for [PIE_CHART: {...}]
+  const chartMatch = text.match(/\[PIE_CHART:\s*(\{.*?\})\s*\]/s);
+  let cleanText = text;
+  let chartData = null;
+
+  if (chartMatch && chartMatch[1]) {
+    cleanText = text.replace(chartMatch[0], '');
+    try {
+      chartData = JSON.parse(chartMatch[1]).data;
+    } catch (e) {
+      console.error("Failed to parse chart data", e);
+    }
+  }
+
+  const COLORS = ['#4F46E5', '#EF4444', '#F59E0B', '#10B981', '#0EA5E9', '#8B5CF6', '#EC4899'];
+
+  return (
+    <div className="space-y-4">
+      <div className="prose prose-sm prose-slate max-w-none">
+        <ReactMarkdown>{cleanText}</ReactMarkdown>
+      </div>
+      {chartData && chartData.length > 0 && (
+        <div className="w-full h-56 bg-slate-50 border border-slate-100 rounded-2xl p-2 mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={50}
+                outerRadius={70}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {chartData.map((entry: any, index: number) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
+              <Legend verticalAlign="bottom" height={20} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
   );
 }
