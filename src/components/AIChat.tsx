@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Send, Sparkles, User, Bot, Mic, MicOff, LayoutDashboard, Settings2, ShieldCheck, Briefcase, Calculator } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import { chatWithInvxtra } from '../services/geminiService';
 import { cn } from '../lib/utils';
@@ -20,8 +21,35 @@ export default function AIChat({ userData }: AIChatProps) {
   const { user } = useFirebase();
   const userName = user?.displayName?.split(' ')[0] || 'there';
   
+  const formatNW = (amount: number) => {
+    if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
+
+  const getInitialGreeting = (data: any, name: string) => {
+    const nw = data?.netWorth || 0;
+    const income = data?.monthlyIncome || 0;
+    const expenses = data?.monthlyExpenses || 0;
+    
+    if (nw === 0 && income === 0 && expenses === 0) {
+      return `👋 Hi ${name}! Welcome to your financial journey. It looks like you're just getting started. Try adding some transactions or accounts, and I'll help you analyze them! 😄`;
+    }
+    
+    if (nw === 0) {
+      return `👋 Hi ${name}! Let's start building your wealth together! Tracking your income and expenses is the first great step. How can I help you plan your savings today? 🌱`;
+    }
+    
+    const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
+    
+    if (income > 0 && savingsRate < 20) {
+      return `👋 Hi ${name}! Your net worth is ${formatNW(nw)}. I noticed your savings rate is a bit low this month (under 20%). A great rule of thumb is saving at least 20% of your income. Want me to suggest areas to cut back? 💡`;
+    }
+    
+    return `👋 Hi ${name}! Your current net worth is ${formatNW(nw)}. This month, you've saved effectively! You spent ${formatNW(expenses)} against an income of ${formatNW(income)}. How can I assist you with your finances today? 😄`;
+  };
+  
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'ai', text: `👋 Hi ${userName}! Portfolio ₹18.6L at 16.2% XIRR — excellent! Quick action: invest ₹26,200 in ELSS before 31 March to fully use your 80C limit. Also Rahul owes you ₹2,400 from the Goa trip — remind him via Smart Split! 😄` }
+    { role: 'ai', text: getInitialGreeting(userData, userName) }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -199,11 +227,13 @@ export default function AIChat({ userData }: AIChatProps) {
                 ? "bg-indigo-600 text-white rounded-tr-none" 
                 : "bg-white text-slate-800 border border-indigo-50 rounded-tl-none"
             )}>
-              <div className="prose prose-sm prose-slate max-w-none">
-                <ReactMarkdown>
-                  {msg.text}
-                </ReactMarkdown>
-              </div>
+              {msg.role === 'user' ? (
+                <div className="prose prose-sm prose-slate max-w-none prose-invert">
+                  <ReactMarkdown>{msg.text}</ReactMarkdown>
+                </div>
+              ) : (
+                <GenerativeMessage text={msg.text} />
+              )}
             </div>
           </div>
         ))}
@@ -234,7 +264,7 @@ export default function AIChat({ userData }: AIChatProps) {
           ))}
         </div>
 
-        <div className="flex gap-2 bg-white p-2 rounded-2xl border border-indigo-50 shadow-lg shadow-indigo-100/20">
+        <div className="flex gap-2 bg-white p-3 rounded-[24px] border border-indigo-50 shadow-lg shadow-indigo-100/20">
           <input 
             type="text" 
             placeholder={isListening ? "Listening..." : "Ask invxtra AI anything..."}
@@ -242,7 +272,7 @@ export default function AIChat({ userData }: AIChatProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             className={cn(
-              "flex-1 bg-slate-50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
+              "flex-1 bg-slate-50 rounded-xl px-6 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
               isListening && "border-indigo-500 ring-2 ring-indigo-500/20"
             )}
           />
@@ -286,5 +316,54 @@ function PersonaButton({ active, onClick, icon, label }: { active: boolean, onCl
       {icon}
       <span className="text-[9px] font-black uppercase tracking-tighter">{label}</span>
     </button>
+  );
+}
+
+function GenerativeMessage({ text }: { text: string }) {
+  // Check for [PIE_CHART: {...}]
+  const chartMatch = text.match(/\[PIE_CHART:\s*(\{.*?\})\s*\]/s);
+  let cleanText = text;
+  let chartData = null;
+
+  if (chartMatch && chartMatch[1]) {
+    cleanText = text.replace(chartMatch[0], '');
+    try {
+      chartData = JSON.parse(chartMatch[1]).data;
+    } catch (e) {
+      console.error("Failed to parse chart data", e);
+    }
+  }
+
+  const COLORS = ['#4F46E5', '#EF4444', '#F59E0B', '#10B981', '#0EA5E9', '#8B5CF6', '#EC4899'];
+
+  return (
+    <div className="space-y-4">
+      <div className="prose prose-sm prose-slate max-w-none">
+        <ReactMarkdown>{cleanText}</ReactMarkdown>
+      </div>
+      {chartData && chartData.length > 0 && (
+        <div className="w-full h-56 bg-slate-50 border border-slate-100 rounded-2xl p-2 mt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={50}
+                outerRadius={70}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {chartData.map((entry: any, index: number) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
+              <Legend verticalAlign="bottom" height={20} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
   );
 }

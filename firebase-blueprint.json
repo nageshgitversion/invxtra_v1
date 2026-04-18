@@ -133,6 +133,20 @@
         "color": { "type": "string" }
       },
       "required": ["uid", "name", "amount", "type"]
+    },
+    "SpendingFine": {
+      "title": "Spending Fine",
+      "description": "A fine applied when spending limits are exceeded.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "category": { "type": "string" },
+        "limit": { "type": "number" },
+        "fineAmount": { "type": "number" },
+        "targetGoalId": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["uid", "category", "limit", "fineAmount", "active"]
     }
   },
   "firestore": {
@@ -167,6 +181,10 @@
     "/splits/{id}": {
       "schema": "Split",
       "description": "Split expenses collection."
+    },
+    "/fines/{id}": {
+      "schema": "SpendingFine",
+      "description": "Behavioral spending fines collection."
     }
   }
 }

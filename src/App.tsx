@@ -46,11 +46,14 @@ import Profile from './components/Profile';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
 import Topbar from './components/Topbar';
+import Household from './components/Household';
+import LandingPage from './components/LandingPage';
 import Modal from './components/Modal';
 import Settings from './components/Settings';
 import Onboarding from './components/Onboarding';
 import WalletModal from './components/WalletModal';
 import Logo from './components/Logo';
+import CommandPalette from './components/CommandPalette';
 
 export default function App() {
   const { 
@@ -178,31 +181,7 @@ export default function App() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-[#060d1a] flex items-center justify-center p-6">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full glass-card p-10 rounded-[40px] text-center border-white/5 bg-white/5 backdrop-blur-2xl"
-        >
-          <Logo variant="stacked" size={120} className="mx-auto mb-8 text-white" />
-          <h1 className="font-display font-extrabold text-3xl mb-3 text-white">Welcome to invxtra</h1>
-          <p className="text-white/50 mb-10 text-sm leading-relaxed">Your smart, AI-powered financial companion. Securely manage your money in one place.</p>
-          
-          <button 
-            onClick={signInWithGoogle}
-            className="w-full bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3"
-          >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6 bg-white rounded-full p-1" />
-            Sign in with Google
-          </button>
-          
-          <p className="mt-6 text-[10px] text-slate-400 font-medium uppercase tracking-widest">
-            Secure · Private · AI-Powered
-          </p>
-        </motion.div>
-      </div>
-    );
+    return <LandingPage onLogin={signInWithGoogle} />;
   }
 
   const refreshInsights = async () => {
@@ -232,6 +211,7 @@ export default function App() {
       case 'taxplanner': return <TaxPlanner />;
       case 'simulator': return <ScenarioSimulator />;
       case 'split': return <SmartSplit splits={splits} />;
+      case 'household': return <Household />;
       case 'settings': return <Settings />;
       case 'profile': return <Profile />;
       case 'aichat': return <AIChat userData={{ netWorth, monthlyIncome, monthlyExpenses }} />;
@@ -354,6 +334,7 @@ export default function App() {
         </div>
       </aside>
 
+      <CommandPalette />
       {/* Modals would be handled here */}
     </div>
   );

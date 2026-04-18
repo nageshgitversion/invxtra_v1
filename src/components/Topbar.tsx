@@ -90,7 +90,7 @@ export default function Topbar({ activeTab, setActiveTab }: TopbarProps) {
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 mt-3 w-80 bg-white rounded-[24px] shadow-2xl border border-indigo-50 py-2 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+            <div className="absolute right-0 mt-3 w-[calc(100vw-32px)] sm:w-80 bg-white rounded-[24px] shadow-2xl border border-indigo-50 py-2 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
               <div className="px-5 py-4 border-b border-slate-50 flex justify-between items-center">
                 <h3 className="font-display font-bold text-sm">Notifications</h3>
                 <div className="flex gap-2">

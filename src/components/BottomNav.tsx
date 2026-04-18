@@ -10,7 +10,8 @@ import {
   Users,
   Zap,
   Calculator,
-  User
+  User,
+  Home
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -26,9 +27,9 @@ export default function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
     { id: 'savings', label: 'Savings', icon: PiggyBank },
     { id: 'portfolio', label: 'Portfolio', icon: TrendingUp },
     { id: 'split', label: 'Split', icon: Users },
+    { id: 'household', label: 'Household', icon: Home },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'taxplanner', label: 'Tax', icon: Calculator },
-    { id: 'simulator', label: 'WHAT-IF', icon: Zap },
   ];
 
   return (

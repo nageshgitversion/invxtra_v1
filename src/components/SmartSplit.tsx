@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { formatCurrency, cn } from '../lib/utils';
 import { Users, Plus, MessageSquare, Share2, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import Modal from './Modal';
 import { Split } from '../types';
 
 interface SmartSplitProps {
@@ -18,15 +19,15 @@ export default function SmartSplit({ splits }: SmartSplitProps) {
   const netBalance = splits.reduce((acc, s) => acc + (s.type === 'owe_you' ? s.amount : -s.amount), 0);
 
   return (
-    <div className="space-y-6">
-      <div className="px-2 flex justify-between items-end">
+    <div className="space-y-4 md:space-y-6">
+      <div className="px-1 sm:px-0 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Bill Splitting</p>
           <h2 className="font-display font-extrabold text-2xl">Smart Split</h2>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-indigo-200 flex items-center gap-2"
+          className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
         >
           <Plus size={16} /> Split a Bill
         </button>
@@ -86,87 +87,84 @@ export default function SmartSplit({ splits }: SmartSplitProps) {
         </div>
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl p-6 space-y-6 animate-in slide-in-from-bottom-full duration-300">
-            <div className="flex justify-between items-center">
-              <h3 className="font-display font-extrabold text-xl">Split a Bill</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title="Split a Bill"
+      >
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">What was it for?</label>
+              <input 
+                type="text" 
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. Dinner at Barbeque Nation..."
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
+              />
             </div>
 
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">What was it for?</label>
-                <input 
-                  type="text" 
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g. Dinner at Barbeque Nation..."
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                />
-              </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Total Amount (₹)</label>
+              <input 
+                type="number" 
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0"
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
+              />
+            </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Total Amount (₹)</label>
-                <input 
-                  type="number" 
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0"
-                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Split between (people)</label>
-                <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <button 
-                    onClick={() => setSplitN(Math.max(2, splitN - 1))}
-                    className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center text-slate-600 font-bold"
-                  >
-                    -
-                  </button>
-                  <div className="flex-1 text-center font-display font-black text-xl">
-                    {splitN}
-                  </div>
-                  <button 
-                    onClick={() => setSplitN(splitN + 1)}
-                    className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center text-slate-600 font-bold"
-                  >
-                    +
-                  </button>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Split between (people)</label>
+              <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                <button 
+                  onClick={() => setSplitN(Math.max(2, splitN - 1))}
+                  className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center text-slate-600 font-bold"
+                >
+                  -
+                </button>
+                <div className="flex-1 text-center font-display font-black text-xl">
+                  {splitN}
                 </div>
+                <button 
+                  onClick={() => setSplitN(splitN + 1)}
+                  className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center text-slate-600 font-bold"
+                >
+                  +
+                </button>
               </div>
-
-              {amount && (
-                <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 text-center space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Each person pays</p>
-                  <p className="font-display font-black text-4xl text-indigo-600">{formatCurrency(perPerson)}</p>
-                  <p className="text-[10px] font-bold text-indigo-400">Total {formatCurrency(parseFloat(amount))} ÷ {splitN} people</p>
-                </div>
-              )}
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <button 
-                onClick={() => setIsModalOpen(false)}
-                className="flex-1 px-6 py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold text-sm"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => {
-                  setIsModalOpen(false);
-                  alert(`Share on WhatsApp: ₹${perPerson} each for ${description}`);
-                }}
-                className="flex-[2] px-6 py-4 rounded-2xl bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
-              >
-                <Share2 size={18} /> Share via WhatsApp
-              </button>
-            </div>
+            {amount && (
+              <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 text-center space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Each person pays</p>
+                <p className="font-display font-black text-4xl text-indigo-600">{formatCurrency(perPerson)}</p>
+                <p className="text-[10px] font-bold text-indigo-400">Total {formatCurrency(parseFloat(amount))} ÷ {splitN} people</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button 
+              onClick={() => setIsModalOpen(false)}
+              className="flex-1 px-6 py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold text-sm hover:bg-slate-200 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={() => {
+                setIsModalOpen(false);
+                alert(`Share on WhatsApp: ₹${perPerson} each for ${description}`);
+              }}
+              className="flex-[2] px-6 py-4 rounded-2xl bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
+            >
+              <Share2 size={18} /> Share
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

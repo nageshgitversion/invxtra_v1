@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { Transaction, Holding, Account, Wallet, FamilyGoal, FamilyMember, Split } from '../types';
+import { Transaction, Holding, Account, Wallet, FamilyGoal, FamilyMember, Split, SpendingFine, UserProfile } from '../types';
 
 interface FirebaseContextType {
   user: User | null;
@@ -15,6 +15,8 @@ interface FirebaseContextType {
   familyGoals: FamilyGoal[];
   familyMembers: FamilyMember[];
   splits: Split[];
+  fines: SpendingFine[];
+  userProfile: UserProfile | null;
 }
 
 const FirebaseContext = createContext<FirebaseContextType | undefined>(undefined);
@@ -30,6 +32,8 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [familyGoals, setFamilyGoals] = useState<FamilyGoal[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [splits, setSplits] = useState<Split[]>([]);
+  const [fines, setFines] = useState<SpendingFine[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -46,6 +50,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             displayName: user.displayName,
             email: user.email,
             photoURL: user.photoURL,
+            householdId: user.uid, // Default household is self
             createdAt: new Date().toISOString(),
           });
         }
@@ -63,8 +68,22 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setHoldings([]);
       setAccounts([]);
       setWallet(null);
+      setFines([]);
+      setSplits([]);
+      setUserProfile(null);
       return;
     }
+
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsubUser = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (!data.householdId) {
+          setDoc(userDocRef, { ...data, householdId: user.uid }, { merge: true });
+        }
+        setUserProfile({ uid: docSnap.id, ...data } as UserProfile);
+      }
+    });
 
     const walletDocRef = doc(db, 'wallets', user.uid);
     const unsubWallet = onSnapshot(walletDocRef, (doc) => {
@@ -100,22 +119,6 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setAccounts(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'accounts'));
 
-    const familyGoalsQuery = query(
-      collection(db, 'familyGoals'),
-      where('uid', '==', user.uid)
-    );
-    const unsubFamilyGoals = onSnapshot(familyGoalsQuery, (snapshot) => {
-      setFamilyGoals(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as FamilyGoal)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'familyGoals'));
-
-    const familyMembersQuery = query(
-      collection(db, 'familyMembers'),
-      where('uid', '==', user.uid)
-    );
-    const unsubFamilyMembers = onSnapshot(familyMembersQuery, (snapshot) => {
-      setFamilyMembers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as FamilyMember)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'familyMembers'));
-
     const splitsQuery = query(
       collection(db, 'splits'),
       where('uid', '==', user.uid),
@@ -125,16 +128,56 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setSplits(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Split)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'splits'));
 
+    const finesQuery = query(
+      collection(db, 'fines'),
+      where('uid', '==', user.uid)
+    );
+    const unsubFines = onSnapshot(finesQuery, (snapshot) => {
+      setFines(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SpendingFine)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'fines'));
+
     return () => {
+      unsubUser();
       unsubTx();
       unsubHoldings();
       unsubAccounts();
       unsubWallet();
-      unsubFamilyGoals();
-      unsubFamilyMembers();
       unsubSplits();
+      unsubFines();
     };
   }, [user]);
+
+  // Separate listener for household-shared collections
+  useEffect(() => {
+    if (!userProfile?.householdId) {
+      setFamilyGoals([]);
+      setFamilyMembers([]);
+      return;
+    }
+
+    const householdId = userProfile.householdId;
+
+    const familyGoalsQuery = query(
+      collection(db, 'familyGoals'),
+      where('uid', '==', householdId) // 'uid' field stores the householdId for these collections
+    );
+    const unsubFamilyGoals = onSnapshot(familyGoalsQuery, (snapshot) => {
+      setFamilyGoals(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as FamilyGoal)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'familyGoals'));
+
+    const familyMembersQuery = query(
+      collection(db, 'familyMembers'),
+      where('uid', '==', householdId)
+    );
+    const unsubFamilyMembers = onSnapshot(familyMembersQuery, (snapshot) => {
+      setFamilyMembers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as FamilyMember)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'familyMembers'));
+
+    return () => {
+      unsubFamilyGoals();
+      unsubFamilyMembers();
+    };
+  }, [userProfile?.householdId]);
 
   return (
     <FirebaseContext.Provider value={{ 
@@ -147,7 +190,9 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       wallet,
       familyGoals,
       familyMembers,
-      splits
+      splits,
+      fines,
+      userProfile
     }}>
       {children}
     </FirebaseContext.Provider>

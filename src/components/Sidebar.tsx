@@ -13,7 +13,8 @@ import {
   Users,
   Settings,
   Calculator,
-  Zap
+  Zap,
+  Home
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
@@ -28,14 +29,18 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const { user } = useFirebase();
+  const currentMonth = new Date().getMonth();
+  const isTaxSeason = currentMonth >= 0 && currentMonth <= 2; // Jan, Feb, Mar
+
   const navItems = [
     { id: 'home', label: 'Home', icon: LayoutDashboard },
     { id: 'transactions', label: 'Expenses', icon: ReceiptIndianRupee },
     { id: 'savings', label: 'Savings', icon: PiggyBank },
     { id: 'portfolio', label: 'Portfolio', icon: TrendingUp },
+    { id: 'household', label: 'Household', icon: Home },
     { id: 'split', label: 'Split', icon: Users },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'taxplanner', label: 'Tax', icon: Calculator },
+    ...(isTaxSeason ? [{ id: 'taxplanner', label: 'Tax', icon: Calculator }] : []),
     { id: 'simulator', label: 'WHAT-IF', icon: Zap },
     { id: 'planner', label: 'Planner', icon: Calendar },
     { id: 'aichat', label: 'AI Chat', icon: Sparkles, badge: 1 },

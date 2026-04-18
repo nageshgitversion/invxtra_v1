@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, Plus, RefreshCw, ArrowRight, Share2, X, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, Plus, RefreshCw, ArrowRight, Share2, X, CheckCircle2, Trash2, Edit2 } from 'lucide-react';
 import { Holding } from '../types';
 import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
@@ -438,6 +438,19 @@ export default function Portfolio({ holdings }: PortfolioProps) {
           >
             {isSubmitting ? "Saving..." : editingHolding ? "Update Investment" : "Save Investment"}
           </button>
+
+          {editingHolding && (
+            <button 
+              type="button"
+              onClick={() => {
+                setIsAddModalOpen(false);
+                setHoldingToDelete(editingHolding);
+              }}
+              className="w-full py-3 text-red-600 font-display font-bold text-sm hover:bg-red-50 rounded-xl transition-all flex items-center justify-center gap-2 mt-2"
+            >
+              <Trash2 size={14} /> Delete Investment
+            </button>
+          )}
         </form>
       </Modal>
 
@@ -544,15 +557,17 @@ export default function Portfolio({ holdings }: PortfolioProps) {
                       <div className="flex items-center justify-end gap-2">
                         <button 
                           onClick={() => handleEditHolding(h)}
-                          className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          title="Edit"
                         >
-                          <ArrowRight size={14} />
+                          <Edit2 size={14} />
                         </button>
                         <button 
                           onClick={() => setHoldingToDelete(h)}
-                          className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          title="Delete"
                         >
-                          <X size={14} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>

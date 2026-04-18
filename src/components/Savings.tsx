@@ -631,7 +631,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
   const loanTotal = accounts.filter(a => a.type === 'loan').reduce((acc, a) => acc + a.amt, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <ConfirmModal 
         isOpen={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
@@ -649,11 +649,11 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
       />
 
       {/* Tabs */}
-      <div className="flex bg-white p-1.5 rounded-2xl border border-indigo-50 shadow-sm sticky top-0 z-10 overflow-x-auto no-scrollbar">
+      <div className="flex bg-white p-1.5 rounded-2xl border border-indigo-50 shadow-sm sticky top-0 z-10 overflow-x-auto no-scrollbar mx-1 sm:mx-0">
         <button 
           onClick={() => setActiveTab('wallet')}
           className={cn(
-            "flex-1 py-2.5 px-4 rounded-xl font-display font-bold text-sm transition-all whitespace-nowrap",
+            "flex-1 py-2 px-3 sm:py-2.5 sm:px-4 rounded-xl font-display font-bold text-[10px] sm:text-sm transition-all whitespace-nowrap",
             activeTab === 'wallet' ? "bg-indigo-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
           )}
         >
@@ -662,7 +662,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
         <button 
           onClick={() => setActiveTab('accounts')}
           className={cn(
-            "flex-1 py-2.5 px-4 rounded-xl font-display font-bold text-sm transition-all whitespace-nowrap",
+            "flex-1 py-2 px-3 sm:py-2.5 sm:px-4 rounded-xl font-display font-bold text-[10px] sm:text-sm transition-all whitespace-nowrap",
             activeTab === 'accounts' ? "bg-indigo-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
           )}
         >
@@ -671,7 +671,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
         <button 
           onClick={() => setActiveTab('recurring')}
           className={cn(
-            "flex-1 py-2.5 px-4 rounded-xl font-display font-bold text-sm transition-all whitespace-nowrap",
+            "flex-1 py-2 px-3 sm:py-2.5 sm:px-4 rounded-xl font-display font-bold text-[10px] sm:text-sm transition-all whitespace-nowrap",
             activeTab === 'recurring' ? "bg-indigo-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
           )}
         >
@@ -1129,12 +1129,17 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
                   </div>
                   <div className="h-2 bg-white/20 rounded-full overflow-hidden mb-2">
                     <div 
-                      className="h-full bg-emerald-400 rounded-full transition-all duration-500" 
-                      style={{ width: `${Math.min(100, (wallet.committed / wallet.balance) * 100)}%` }}
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        wallet.balance > 0 
+                          ? ((wallet.committed / wallet.balance) > 0.9 ? "bg-red-400" : (wallet.committed / wallet.balance) > 0.7 ? "bg-amber-400" : "bg-emerald-400")
+                          : "bg-slate-400/50"
+                      )} 
+                      style={{ width: `${wallet.balance > 0 ? Math.min(100, (wallet.committed / wallet.balance) * 100) : 0}%` }}
                     ></div>
                   </div>
                   <div className="flex justify-between text-[10px] font-bold opacity-70">
-                    <span>{Math.round((wallet.committed / wallet.balance) * 100)}% used</span>
+                    <span>{wallet.balance > 0 ? Math.round((wallet.committed / wallet.balance) * 100) : 0}% used</span>
                     <button className="hover:underline">+ Record Spend</button>
                   </div>
                   <div className="grid grid-cols-3 gap-2 mt-6 bg-white/10 p-3 rounded-xl backdrop-blur-sm">
@@ -1509,19 +1514,22 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
 }
 
 function EnvelopeCard({ icon, name, spent, budget, color }: { icon: string, name: string, spent: number, budget: number, color: string }) {
-  const pct = Math.min(100, (spent / budget) * 100);
+  const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : (spent > 0 ? 100 : 0);
   const colors: Record<string, string> = {
     emerald: "bg-emerald-500",
     red: "bg-red-500",
     amber: "bg-amber-500",
+    slate: "bg-slate-400",
   };
+
+  const barColor = budget === 0 && spent === 0 ? "slate" : color;
 
   return (
     <div className="glass-card p-4 rounded-2xl relative overflow-hidden">
       <div className="text-2xl mb-2">{icon}</div>
       <p className="text-[10px] font-bold text-slate-500 mb-2">{name}</p>
       <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden mb-2">
-        <div className={cn("h-full rounded-full", colors[color])} style={{ width: `${pct}%` }}></div>
+        <div className={cn("h-full rounded-full transition-all", colors[barColor])} style={{ width: `${pct}%` }}></div>
       </div>
       <p className="font-display font-extrabold text-base">{formatCurrency(budget - spent)}</p>
       <p className="text-[9px] font-medium text-slate-400">Spent {formatCurrency(spent)} / {formatCurrency(budget)}</p>

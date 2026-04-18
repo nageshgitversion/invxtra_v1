@@ -39,13 +39,13 @@ export default function Planner({ wallet, familyGoals, transactions }: PlannerPr
   const savingsPotential = Math.max(0, taxData.old.payable - taxData.new.payable);
 
   return (
-    <div className="space-y-6">
-      <div className="px-2 flex justify-between items-end">
+    <div className="space-y-4 md:space-y-6">
+      <div className="px-1 sm:px-0 flex justify-between items-end gap-2">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">FY 2025-26</p>
           <h2 className="font-display font-extrabold text-2xl">Planner</h2>
         </div>
-        <div className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+        <div className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
           Tax Planner
         </div>
       </div>

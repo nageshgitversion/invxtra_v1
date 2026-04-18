@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, LineChart, Line } from 'recharts';
 import { Transaction, Holding } from '../types';
 import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
 import { Heart, Coffee, Fingerprint, Zap, TrendingUp, ShieldCheck, Wallet, Activity } from 'lucide-react';
+import SubscriptionManager from './SubscriptionManager';
 
 interface AnalyticsProps {
   transactions: Transaction[];
@@ -126,7 +127,7 @@ export default function Analytics({ transactions, holdings }: AnalyticsProps) {
             <span className="flex items-center gap-1 text-purple-600"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Savings</span>
           </div>
         </div>
-        <div className="h-[250px] w-full">
+        <div className="hidden md:block h-[250px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={barData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -152,6 +153,25 @@ export default function Analytics({ transactions, holdings }: AnalyticsProps) {
             </BarChart>
           </ResponsiveContainer>
         </div>
+        
+        {/* Mobile Sparkline view */}
+        <div className="block md:hidden">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 mt-4 flex items-center gap-2">
+            <TrendingUp size={12} className="text-purple-500" /> Savings Trend (6m)
+          </p>
+          <div className="h-[80px] w-full bg-slate-50 rounded-xl p-2 border border-slate-100">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={barData}>
+                <Line type="monotone" dataKey="savings" stroke="#8B5CF6" strokeWidth={3} dot={{ r: 3, fill: '#8B5CF6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', padding: '4px 8px' }}
+                  labelStyle={{ display: 'none' }}
+                  formatter={(value: number) => [`₹${formatCompactNumber(value)}`, 'Savings']}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -160,6 +180,8 @@ export default function Analytics({ transactions, holdings }: AnalyticsProps) {
         <StatItem label="Total Savings" value={formatCurrency(Math.max(0, totalIncome - totalSpent))} color="text-purple-600" />
         <StatItem label="Savings Rate" value={`${savingsRate}%`} color="text-amber-600" />
       </div>
+
+      <SubscriptionManager transactions={transactions} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-card p-6 rounded-2xl">

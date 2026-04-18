@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { motion } from 'motion/react';
+import { motion, useMotionValue, useTransform, useSpring } from 'motion/react';
 import { Sparkles, TrendingUp, ArrowUpRight, ArrowDownRight, Wallet, Settings2, Activity, Zap, Bell, User, RefreshCw, ShieldCheck, PieChart, Info, Plus } from 'lucide-react';
 import { Transaction, Holding, Account, Wallet as WalletType } from '../types';
 import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
 import Modal from './Modal';
 import { PieChart as RePieChart, Pie, Cell, ResponsiveContainer, Tooltip, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
+import MoneyCalendar from './MoneyCalendar';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -278,20 +279,23 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
   };
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-6 md:space-y-8 pb-10">
       {/* Header & Quick Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 sm:px-0">
+        <div className="flex flex-col">
           <p className="text-slate-400 text-xs font-medium tracking-wide uppercase">{getGreeting()},</p>
-          <h2 className="font-display font-extrabold text-3xl text-slate-900 tracking-tight">
-            {user?.displayName?.split(' ')[0] || 'User'} 👋
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display font-extrabold text-2xl md:text-3xl text-slate-900 tracking-tight">
+              {user?.displayName?.split(' ')[0] || 'User'}
+            </h2>
+            <span className="text-2xl">👋</span>
+          </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
             onClick={() => window.dispatchEvent(new CustomEvent('setActiveTab', { detail: 'transactions' }))}
-            className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group active:scale-95"
           >
             <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
               <Plus size={18} />
@@ -299,21 +303,20 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
             <span className="text-sm font-bold text-slate-700">Add Transaction</span>
           </button>
           
-          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group">
+          <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group">
             <div className={cn(
               "w-10 h-10 rounded-xl flex items-center justify-center font-display font-black text-lg relative z-10",
               healthScore.total > 80 ? "bg-emerald-50 text-emerald-600" : 
               healthScore.total > 60 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
             )}>
               {healthScore.total}
-              {/* Pulse Animation */}
               <div className={cn(
                 "absolute inset-0 rounded-xl animate-ping opacity-20",
                 healthScore.total > 80 ? "bg-emerald-400" : 
                 healthScore.total > 60 ? "bg-amber-400" : "bg-red-400"
               )}></div>
             </div>
-            <div className="hidden sm:block relative z-10">
+            <div className="relative z-10">
               <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Wealth Rank</p>
               <p className={cn("text-[10px] font-bold", healthScore.rankColor)}>
                 {healthScore.rankIcon} {healthScore.rank}
@@ -326,66 +329,17 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
       {/* Hero Section: Net Worth & Financial Runway */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Net Worth Card */}
-        <section className="lg:col-span-8 hero-gradient rounded-[40px] p-8 md:p-10 text-white shadow-2xl shadow-indigo-200/50 relative overflow-hidden flex flex-col justify-between min-h-[320px]">
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] opacity-80">TOTAL NET WORTH</p>
-              <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5">
-                <ShieldCheck size={12} />
-                SECURED
-              </div>
-            </div>
-            
-            <h2 className="font-display font-extrabold text-5xl md:text-6xl tracking-tighter mb-6">
-              {formatCurrency(netWorth)}
-            </h2>
-
-            <div className="flex flex-wrap gap-4 mb-10">
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
-                <div className={cn(
-                  "w-2 h-2 rounded-full animate-pulse",
-                  portfolioPerformance === null ? "bg-indigo-400" : 
-                  portfolioPerformance >= 0 ? "bg-emerald-400" : "bg-red-400"
-                )}></div>
-                <span className="text-xs font-bold tracking-tight">
-                  {portfolioPerformance === null 
-                    ? "Portfolio ready for growth" 
-                    : `Portfolio ${portfolioPerformance >= 0 ? 'up' : 'down'} ${Math.abs(portfolioPerformance).toFixed(1)}% overall`}
-                </span>
-              </div>
-              <button 
-                onClick={openWallet}
-                className="flex items-center gap-2 bg-white text-indigo-600 px-4 py-2 rounded-2xl text-xs font-black shadow-xl hover:bg-indigo-50 transition-all active:scale-95"
-              >
-                <Wallet size={16} />
-                {wallet?.active ? "MANAGE WALLET" : "SETUP WALLET"}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-sm border border-white/5">
-                <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">ASSETS</p>
-                <p className="font-display font-extrabold text-lg">{formatCompactNumber(assets)}</p>
-              </div>
-              <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-sm border border-white/5">
-                <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">LIABILITIES</p>
-                <p className="font-display font-extrabold text-lg text-red-200">{formatCompactNumber(liabilities)}</p>
-              </div>
-              <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-sm border border-white/5">
-                <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">CASH FLOW</p>
-                <p className="font-display font-extrabold text-lg text-emerald-200">+{formatCompactNumber(income - expenses)}</p>
-              </div>
-              <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-sm border border-white/5">
-                <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">FREE CASH</p>
-                <p className="font-display font-extrabold text-lg text-amber-200">{formatCompactNumber(wallet?.free || 0)}</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Decorative Elements */}
-          <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-indigo-400/20 rounded-full blur-[100px]"></div>
-          <div className="absolute -top-20 -left-20 w-60 h-60 bg-purple-400/20 rounded-full blur-[80px]"></div>
-        </section>
+        {/* Net Worth Card (Spatial UI) */}
+        <SpatialNetWorthCard 
+          netWorth={netWorth}
+          portfolioPerformance={portfolioPerformance}
+          assets={assets}
+          liabilities={liabilities}
+          income={income}
+          expenses={expenses}
+          wallet={wallet}
+          openWallet={openWallet}
+        />
 
         {/* Financial Runway Card */}
         <section className="lg:col-span-4 glass-card rounded-[40px] p-8 flex flex-col justify-between relative overflow-hidden group">
@@ -446,16 +400,20 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
             </div>
 
             <div className="space-y-2">
-              <p className="text-slate-400 text-sm font-medium">If you stopped working today, you could live for:</p>
-              <div className="flex items-baseline gap-3">
-                <span className="font-display font-black text-6xl md:text-7xl tracking-tighter text-white">
-                  {freedomStats.years}
-                </span>
-                <span className="text-2xl font-display font-bold text-slate-500 uppercase tracking-widest">Years</span>
-                <span className="font-display font-black text-6xl md:text-7xl tracking-tighter text-white">
-                  {freedomStats.days}
-                </span>
-                <span className="text-2xl font-display font-bold text-slate-500 uppercase tracking-widest">Days</span>
+              <p className="text-slate-400 text-xs md:text-sm font-medium">If you stopped working today, you could live for:</p>
+              <div className="flex items-baseline gap-2 md:gap-4 overflow-x-auto no-scrollbar py-2">
+                <div className="flex items-baseline gap-1 md:gap-2">
+                  <span className="font-display font-black text-4xl sm:text-5xl md:text-6xl lg:text-7xl tracking-tighter text-white">
+                    {freedomStats.years}
+                  </span>
+                  <span className="text-xs sm:text-sm md:text-xl font-display font-bold text-slate-500 uppercase tracking-widest">Years</span>
+                </div>
+                <div className="flex items-baseline gap-1 md:gap-2">
+                  <span className="font-display font-black text-4xl sm:text-5xl md:text-6xl lg:text-7xl tracking-tighter text-white">
+                    {freedomStats.days}
+                  </span>
+                  <span className="text-xs sm:text-sm md:text-xl font-display font-bold text-slate-500 uppercase tracking-widest">Days</span>
+                </div>
               </div>
             </div>
 
@@ -616,8 +574,8 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full">Diversification</span>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center gap-10">
-            <div className="relative w-48 h-48 shrink-0">
+          <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 pl-0 md:pl-10">
+          <div className="relative w-48 h-48 md:w-56 md:h-56 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <RePieChart>
                   <Pie
@@ -717,8 +675,8 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-12 items-center">
-            <div className="relative w-40 h-40 flex items-center justify-center shrink-0">
+          <div className="flex flex-col md:flex-row gap-6 md:gap-12 items-center">
+            <div className="relative w-32 h-32 md:w-40 md:h-40 flex items-center justify-center shrink-0">
               <svg className="w-full h-full transform -rotate-90">
                 <circle cx="80" cy="80" r="72" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
                 <circle 
@@ -829,6 +787,11 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
           </div>
         </section>
       </div>
+
+      {/* Money Weather Calendar */}
+      <section>
+        <MoneyCalendar transactions={transactions} wallet={wallet} />
+      </section>
 
       {/* Quick Stats & AI Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1058,5 +1021,111 @@ function ScoreItem({ label, score }: { label: string, score: number }) {
         <span className="text-[8px] font-bold text-slate-400">/100</span>
       </div>
     </div>
+  );
+}
+
+function SpatialNetWorthCard({ netWorth, portfolioPerformance, assets, liabilities, income, expenses, wallet, openWallet }: any) {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const mouseXSpring = useSpring(x, { stiffness: 300, damping: 20 });
+  const mouseYSpring = useSpring(y, { stiffness: 300, damping: 20 });
+
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["5deg", "-5deg"]);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-5deg", "5deg"]);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    const xPct = mouseX / width - 0.5;
+    const yPct = mouseY / height - 0.5;
+    
+    x.set(xPct);
+    y.set(yPct);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.section 
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+      className="lg:col-span-8 hero-gradient rounded-[40px] p-8 md:p-10 text-white shadow-2xl shadow-indigo-200/50 relative overflow-visible flex flex-col justify-between min-h-[320px] will-change-transform"
+    >
+      <div className="relative z-10" style={{ transform: "translateZ(30px)" }}>
+        <div className="flex justify-between items-start mb-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] opacity-80">TOTAL NET WORTH</p>
+          <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+            <ShieldCheck size={12} />
+            SECURED
+          </div>
+        </div>
+        
+        <h2 className="font-display font-extrabold text-4xl sm:text-5xl md:text-6xl tracking-tighter mb-6 drop-shadow-lg">
+          {formatCurrency(netWorth)}
+        </h2>
+
+        <div className="flex flex-wrap gap-4 mb-10">
+          <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
+            <div className={cn(
+              "w-2 h-2 rounded-full animate-pulse",
+              portfolioPerformance === null ? "bg-indigo-400" : 
+              portfolioPerformance >= 0 ? "bg-emerald-400" : "bg-red-400"
+            )}></div>
+            <span className="text-xs font-bold tracking-tight">
+              {portfolioPerformance === null 
+                ? "Portfolio ready for growth" 
+                : `Portfolio ${portfolioPerformance >= 0 ? 'up' : 'down'} ${Math.abs(portfolioPerformance).toFixed(1)}% overall`}
+            </span>
+          </div>
+          <button 
+            onClick={openWallet}
+            className="flex items-center gap-2 bg-white text-indigo-600 px-4 py-2 rounded-2xl text-xs font-black shadow-xl hover:bg-indigo-50 transition-all active:scale-95"
+            style={{ transform: "translateZ(10px)" }}
+          >
+            <Wallet size={16} />
+            {wallet?.active ? "MANAGE WALLET" : "SETUP WALLET"}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4" style={{ transform: "translateZ(20px)" }}>
+          <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-sm border border-white/5 hover:bg-white/20 transition-colors cursor-default">
+            <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">ASSETS</p>
+            <p className="font-display font-extrabold text-lg">{formatCompactNumber(assets)}</p>
+          </div>
+          <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-sm border border-white/5 hover:bg-white/20 transition-colors cursor-default">
+            <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">LIABILITIES</p>
+            <p className="font-display font-extrabold text-lg text-red-200">{formatCompactNumber(liabilities)}</p>
+          </div>
+          <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-sm border border-white/5 hover:bg-white/20 transition-colors cursor-default">
+            <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">CASH FLOW</p>
+            <p className="font-display font-extrabold text-lg text-emerald-200">+{formatCompactNumber(income - expenses)}</p>
+          </div>
+          <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-sm border border-white/5 hover:bg-white/20 transition-colors cursor-default">
+            <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">FREE CASH</p>
+            <p className="font-display font-extrabold text-lg text-amber-200">{formatCompactNumber(wallet?.free || 0)}</p>
+          </div>
+        </div>
+      </div>
+      
+      {/* Decorative Elements */}
+      <motion.div 
+        style={{ x: useTransform(x, [-0.5, 0.5], [20, -20]), y: useTransform(y, [-0.5, 0.5], [20, -20]) }}
+        className="absolute -bottom-20 -right-20 w-80 h-80 bg-indigo-400/30 rounded-full blur-[100px] pointer-events-none" 
+      />
+      <motion.div 
+        style={{ x: useTransform(x, [-0.5, 0.5], [-20, 20]), y: useTransform(y, [-0.5, 0.5], [-20, 20]) }}
+        className="absolute -top-20 -left-20 w-60 h-60 bg-purple-400/30 rounded-full blur-[80px] pointer-events-none" 
+      />
+    </motion.section>
   );
 }

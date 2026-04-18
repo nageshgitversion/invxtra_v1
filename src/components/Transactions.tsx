@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Mic, Filter, MicOff, X, Trash2, Repeat } from 'lucide-react';
+import { Search, Plus, Mic, Filter, MicOff, X, Trash2, Repeat, Camera } from 'lucide-react';
 import { Transaction, RecurrenceFrequency, Wallet as WalletType } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, increment, deleteDoc } from 'firebase/firestore';
 import Modal from './Modal';
+import ImportTransactions from './ImportTransactions';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { processRecurringTransactions } from '../lib/recurrence';
+import { scanReceipt } from '../services/geminiService';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -15,10 +17,11 @@ interface TransactionsProps {
 }
 
 export default function Transactions({ transactions, wallet }: TransactionsProps) {
-  const { user, accounts, holdings } = useFirebase();
+  const { user, accounts, holdings, fines } = useFirebase();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -36,6 +39,9 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrence, setRecurrence] = useState<RecurrenceFrequency>('monthly');
+  const [showImpulseWarning, setShowImpulseWarning] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { 
     isListening, 
@@ -57,13 +63,56 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
     }
   }, [transcript, isAddModalOpen]);
 
-  const handleAddTransaction = async (e: React.FormEvent) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    setIsAddModalOpen(true);
+    
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = (reader.result as string).split(',')[1];
+        try {
+          const extracted = await scanReceipt(base64String, file.type);
+          if (extracted.name) setName(extracted.name);
+          if (extracted.amount) setAmount(extracted.amount.toString());
+          if (extracted.category) setCategory(extracted.category);
+          if (extracted.date) setDate(extracted.date);
+          setType('expense');
+        } catch (err) {
+          console.error(err);
+          alert("Could not scan receipt. Please enter manually.");
+        } finally {
+          setIsScanning(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setIsScanning(false);
+    }
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddTransaction = async (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
     if (!user || !name || !amount || isSubmitting) return;
 
+    const finalAmount = type === 'income' ? parseFloat(amount) : -Math.abs(parseFloat(amount));
+
+    if (type === 'expense' && Math.abs(finalAmount) >= 10000 && !showImpulseWarning) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      setShowImpulseWarning(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const finalAmount = type === 'income' ? parseFloat(amount) : -Math.abs(parseFloat(amount));
       const emojiMap: Record<string, string> = {
         income: '💰',
         expense: '💳',
@@ -148,8 +197,56 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
             });
           }
         }
+
+        // Evaluate Fines (Only for one-time expenses)
+        if (type === 'expense') {
+          const activeFines = fines?.filter(f => f.active && f.category.toLowerCase() === category.toLowerCase()) || [];
+          for (const fine of activeFines) {
+            // Check if this transaction pushes them over the limit
+            const currentMonth = date.slice(0, 7);
+            const currentMonthTx = transactions.filter(t => !t.isRecurring && t.type === 'expense' && t.category.toLowerCase() === category.toLowerCase() && t.date.startsWith(currentMonth));
+            const prevTotal = currentMonthTx.reduce((acc, t) => acc + Math.abs(t.amount), 0);
+            const newTotal = prevTotal + Math.abs(finalAmount);
+
+            // Apply fine if they just crossed the limit, OR if they are already over the limit (applies fine per transaction over limit)
+            if (newTotal > fine.limit) {
+              if (wallet && wallet.free >= fine.fineAmount) {
+                // 1. Log Fine Transaction
+                await addDoc(collection(db, 'transactions'), {
+                  uid: user.uid,
+                  name: `🚨 Spending Fine: Over limit on ${fine.category}`,
+                  amount: -fine.fineAmount, // It's treated as a savings outflow from wallet
+                  type: 'savings',
+                  category: 'Savings',
+                  date,
+                  emoji: '💸',
+                  isRecurring: false,
+                  recurrence: 'none',
+                  linkedAcc: 'wallet',
+                  createdAt: new Date().toISOString()
+                });
+
+                // 2. Deduct from wallet
+                const walletRef = doc(db, 'wallets', user.uid);
+                await updateDoc(walletRef, {
+                  balance: increment(-fine.fineAmount),
+                  free: increment(-fine.fineAmount)
+                });
+
+                // 3. Add to Goal
+                if (fine.targetGoalId) {
+                  const goalRef = doc(db, 'familyGoals', fine.targetGoalId);
+                  await updateDoc(goalRef, {
+                    saved: increment(fine.fineAmount)
+                  });
+                }
+              }
+            }
+          }
+        }
       }
 
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([50]);
       setIsAddModalOpen(false);
       resetForm();
     } catch (err) {
@@ -172,6 +269,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
     setFundSource('wallet');
     setIsRecurring(false);
     setRecurrence('monthly');
+    setShowImpulseWarning(false);
   };
 
   const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
@@ -246,22 +344,36 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-end">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 px-1 sm:px-0">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{currentMonthName}</p>
           <h2 className="font-display font-extrabold text-2xl">Transactions</h2>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+          <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isScanning}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm disabled:opacity-50 whitespace-nowrap"
+          >
+            <Camera size={14} /> {isScanning ? "Scanning..." : "Scan"}
+          </button>
           <button 
             onClick={() => { setIsAddModalOpen(true); startListening(); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm whitespace-nowrap"
           >
             <Mic size={14} /> Voice
           </button>
           <button 
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm whitespace-nowrap"
+          >
+            Import
+          </button>
+          <button 
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-display font-bold text-xs shadow-md shadow-indigo-100"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-display font-bold text-xs shadow-md shadow-indigo-100 whitespace-nowrap"
           >
             <Plus size={14} /> Add
           </button>
@@ -498,15 +610,48 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
             </div>
           )}
 
-          <button 
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 mt-4"
-          >
-            {isSubmitting ? "Saving..." : "Save Transaction"}
-          </button>
+          {showImpulseWarning ? (
+            <div className="bg-red-50 border border-red-200 p-4 rounded-2xl animate-in zoom-in duration-300 mt-4">
+              <h4 className="font-display font-black text-red-600 flex items-center gap-2 mb-2">
+                Anti-Impulse Warning
+              </h4>
+              <p className="text-sm text-red-800 font-medium mb-4">
+                You're about to spend ₹{Math.abs(parseFloat(amount)).toLocaleString('en-IN')}. This is a large expense that might impact your financial runway.
+              </p>
+              <div className="flex gap-2">
+                <button 
+                  type="button"
+                  onClick={() => setShowImpulseWarning(false)}
+                  className="flex-1 py-3 bg-white border border-red-200 text-red-600 font-bold rounded-xl text-sm"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={(e) => handleAddTransaction(e)}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl text-sm shadow-md shadow-red-200"
+                >
+                  Yes, I'm sure
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 mt-4"
+            >
+              {isSubmitting ? "Saving..." : "Save Transaction"}
+            </button>
+          )}
         </form>
       </Modal>
+
+      <ImportTransactions 
+        isOpen={isImportModalOpen} 
+        onClose={() => setIsImportModalOpen(false)} 
+        onSuccess={() => {}} 
+      />
 
       {/* Delete Confirmation Modal */}
       <Modal
@@ -547,7 +692,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
         </div>
       </Modal>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 px-1 sm:px-0">
         <StatCard label="Total Spent" value={formatCurrency(totalSpent)} color="text-red-600" />
         <StatCard label="Transactions" value={filteredTransactions.length.toString()} color="text-indigo-600" />
         <StatCard label="Daily Avg" value={formatCurrency(Math.round(totalSpent / 30))} color="text-amber-600" />
@@ -555,13 +700,13 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1 sm:px-0">
         {['all', 'income', 'expense', 'investment', 'savings'].map((t) => (
           <button
             key={t}
             onClick={() => setFilter(t)}
             className={cn(
-              "px-5 py-2.5 rounded-full text-xs font-display font-bold whitespace-nowrap transition-all border",
+              "px-4 py-2 rounded-full text-[10px] font-display font-bold whitespace-nowrap transition-all border",
               filter === t 
                 ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100" 
                 : "bg-white text-slate-500 border-indigo-50 hover:border-indigo-200"
@@ -573,66 +718,63 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
       </div>
 
       {/* Search & Filter */}
-      <div className="flex gap-3">
+      <div className="flex gap-3 px-1 sm:px-0">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input 
             type="text" 
-            placeholder="Search transactions..." 
+            placeholder="Search..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 rounded-xl border border-indigo-50 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+            className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-indigo-50 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
           />
         </div>
-        <button className="w-12 h-12 rounded-xl bg-white border border-indigo-50 flex items-center justify-center text-slate-500">
+        <button className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-white border border-indigo-50 flex items-center justify-center text-slate-500">
           <Filter size={18} />
         </button>
       </div>
 
-      <div className="glass-card rounded-2xl overflow-hidden divide-y divide-slate-50">
-        {filteredTransactions.length > 0 ? filteredTransactions.map((tx) => (
-          <div key={tx.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors group">
-            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">
-              {tx.emoji}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="font-bold text-sm truncate">{tx.name}</p>
-                {tx.isRecurring && (
-                  <span className="p-1 rounded-md bg-indigo-50 text-indigo-600" title={`Recurring: ${tx.recurrence}`}>
-                    <Repeat size={10} />
-                  </span>
-                )}
-                {tx.isTaxDeductible && (
-                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[8px] font-black uppercase" title={`Tax Deductible: ${tx.taxSection}`}>
-                    Tax: {tx.taxSection}
-                  </span>
-                )}
-                {tx.isCapitalGain && (
-                  <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 text-[8px] font-black uppercase" title={`Capital Gain: ${tx.gainType}`}>
-                    {tx.gainType}
-                  </span>
-                )}
+      <div className="glass-card rounded-2xl overflow-hidden divide-y divide-slate-50 mx-1 sm:mx-0">
+        {filteredTransactions.length > 0 ? (
+          filteredTransactions.map((tx) => (
+            <div key={tx.id} className="flex items-center gap-3 md:gap-4 p-3 md:p-4 hover:bg-slate-50 transition-colors group">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 flex items-center justify-center text-xl md:text-2xl shrink-0">
+                {tx.emoji}
               </div>
-              <p className="text-[10px] text-slate-400 font-medium">
-                {tx.category} · {new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-              </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-bold text-xs md:text-sm truncate">{tx.name}</p>
+                  {tx.isRecurring && (
+                    <span className="p-0.5 rounded-md bg-indigo-50 text-indigo-600" title={`Recurring: ${tx.recurrence}`}>
+                      <Repeat size={8} />
+                    </span>
+                  )}
+                  {tx.isTaxDeductible && (
+                    <span className="px-1 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[6px] md:text-[8px] font-black uppercase" title={`Tax Deductible: ${tx.taxSection}`}>
+                      Tax
+                    </span>
+                  )}
+                </div>
+                <p className="text-[9px] text-slate-400 font-medium">
+                  {tx.category} · {new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                </p>
+              </div>
+              <div className={cn(
+                "font-display font-extrabold text-xs md:text-sm text-right",
+                tx.amount > 0 ? "text-emerald-600" : "text-slate-900"
+              )}>
+                {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
+              </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setTxToDelete(tx); }}
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-2 text-slate-300 hover:text-red-500 transition-all shrink-0"
+                title="Delete & Reconcile"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
-            <div className={cn(
-              "font-display font-extrabold text-sm text-right",
-              tx.amount > 0 ? "text-emerald-600" : "text-slate-900"
-            )}>
-              {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
-            </div>
-            <button 
-              onClick={(e) => { e.stopPropagation(); setTxToDelete(tx); }}
-              className="opacity-0 group-hover:opacity-100 p-2 text-slate-300 hover:text-red-500 transition-all"
-              title="Delete & Reconcile"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        )) : (
+          ))
+        ) : (
           <div className="p-10 text-center text-slate-400 text-sm font-medium">
             No transactions found
           </div>

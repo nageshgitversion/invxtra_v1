@@ -96,6 +96,7 @@ export interface Wallet {
 export interface FamilyMember {
   id: string;
   uid: string;
+  householdId?: string; // Optional for backward compatibility
   name: string;
   role: string;
   contribution: number;
@@ -103,9 +104,17 @@ export interface FamilyMember {
   initial: string;
 }
 
+export interface UserProfile {
+  uid: string;
+  householdId: string;
+  displayName: string;
+}
+
+
 export interface FamilyGoal {
   id: string;
   uid: string;
+  householdId?: string; // Optional for backward compatibility
   name: string;
   target: number;
   saved: number;
@@ -124,3 +133,14 @@ export interface Split {
   initial: string;
   color: string;
 }
+
+export interface SpendingFine {
+  id: string;
+  uid: string;
+  category: string;
+  limit: number;
+  fineAmount: number;
+  targetGoalId: string;
+  active: boolean;
+}
+

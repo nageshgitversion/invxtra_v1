@@ -43,7 +43,7 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto no-scrollbar">
+            <div className="p-6 pb-32 md:pb-6 overflow-y-auto no-scrollbar">
               {children}
             </div>
           </motion.div>
