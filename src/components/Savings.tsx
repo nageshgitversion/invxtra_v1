@@ -17,26 +17,11 @@ interface SavingsProps {
 }
 
 export default function Savings({ accounts, transactions }: SavingsProps) {
-  const { user, wallet, familyGoals, familyMembers } = useFirebase();
+  const { user, wallet, familyGoals } = useFirebase();
   const [activeTab, setActiveTab] = useState<'wallet' | 'accounts' | 'recurring'>('wallet');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
 
-  // Family Goals state
-  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
-  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
-  const [isContributeModalOpen, setIsContributeModalOpen] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<FamilyGoal | null>(null);
-  const [contributionAmount, setContributionAmount] = useState('');
-  const [selectedMember, setSelectedMember] = useState<string>('');
-
-  const [goalName, setGoalName] = useState('');
-  const [goalTarget, setGoalTarget] = useState('');
-  const [goalEta, setGoalEta] = useState('');
-
-  const [memberName, setMemberName] = useState('');
-  const [memberRole, setMemberRole] = useState('');
-  const [memberColor, setMemberColor] = useState('from-indigo-500 to-purple-500');
   
   // Form state
   const [name, setName] = useState('');
@@ -508,122 +493,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
     setError(null);
   };
 
-  const handleAddGoal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !goalName || !goalTarget) return;
-    setIsSubmitting(true);
-    try {
-      await addDoc(collection(db, 'familyGoals'), {
-        uid: user.uid,
-        name: goalName,
-        target: parseFloat(goalTarget),
-        saved: 0,
-        eta: goalEta,
-        contributions: {},
-        createdAt: new Date().toISOString()
-      });
-      setIsGoalModalOpen(false);
-      setGoalName('');
-      setGoalTarget('');
-      setGoalEta('');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'familyGoals');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
-  const handleAddMember = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !memberName) return;
-    setIsSubmitting(true);
-    try {
-      await addDoc(collection(db, 'familyMembers'), {
-        uid: user.uid,
-        name: memberName,
-        role: memberRole,
-        color: memberColor,
-        initial: memberName.charAt(0).toUpperCase(),
-        contribution: 0,
-        createdAt: new Date().toISOString()
-      });
-      setIsMemberModalOpen(false);
-      setMemberName('');
-      setMemberRole('');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'familyMembers');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleContribute = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !selectedGoal || !contributionAmount || !selectedMember || !wallet) return;
-    const amount = parseFloat(contributionAmount);
-    if (amount > wallet.free) {
-      setError("Insufficient free balance in wallet!");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      // 1. Update Goal
-      const goalRef = doc(db, 'familyGoals', selectedGoal.id);
-      await updateDoc(goalRef, {
-        saved: increment(amount),
-        [`contributions.${selectedMember}`]: increment(amount)
-      });
-
-      // 2. Update Member contribution
-      const memberRef = doc(db, 'familyMembers', selectedMember);
-      await updateDoc(memberRef, {
-        contribution: increment(amount)
-      });
-
-      // 3. Update Wallet
-      const walletRef = doc(db, 'wallets', user.uid);
-      await updateDoc(walletRef, {
-        balance: increment(-amount),
-        free: increment(-amount)
-      });
-
-      // 4. Add Transaction
-      await addDoc(collection(db, 'transactions'), {
-        uid: user.uid,
-        name: `Goal: ${selectedGoal.name}`,
-        amount: -amount,
-        type: 'expense',
-        category: 'Savings',
-        emoji: '🎯',
-        date: new Date().toISOString().split('T')[0],
-        createdAt: new Date().toISOString()
-      });
-
-      setIsContributeModalOpen(false);
-      setContributionAmount('');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'familyGoals');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteGoal = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'familyGoals', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'familyGoals');
-    }
-  };
-
-  const handleDeleteMember = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'familyMembers', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'familyMembers');
-    }
-  };
   const savingsTotal = accounts.filter(a => a.type === 'savings').reduce((acc, a) => acc + a.amt, 0);
   const fdTotal = accounts.filter(a => a.type === 'fd').reduce((acc, a) => acc + a.amt, 0);
   const rdTotal = accounts.filter(a => a.type === 'rd').reduce((acc, a) => acc + a.amt, 0);
@@ -631,7 +501,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
   const loanTotal = accounts.filter(a => a.type === 'loan').reduce((acc, a) => acc + a.amt, 0);
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-6">
       <ConfirmModal 
         isOpen={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
@@ -639,8 +509,6 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
           if (!confirmDelete) return;
           if (confirmDelete.type === 'account') handleDeleteAccount(confirmDelete.id);
           if (confirmDelete.type === 'recurring') handleDeleteRecurring(confirmDelete.id);
-          if (confirmDelete.type === 'goal') handleDeleteGoal(confirmDelete.id);
-          if (confirmDelete.type === 'member') handleDeleteMember(confirmDelete.id);
         }}
         title="Confirm Deletion"
         message={`Are you sure you want to delete this ${confirmDelete?.type}? This action cannot be undone.`}
@@ -649,11 +517,11 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
       />
 
       {/* Tabs */}
-      <div className="flex bg-white p-1.5 rounded-2xl border border-indigo-50 shadow-sm sticky top-0 z-10 overflow-x-auto no-scrollbar mx-1 sm:mx-0">
+      <div className="flex bg-white p-1.5 rounded-2xl border border-indigo-50 shadow-sm sticky top-0 z-10 overflow-x-auto no-scrollbar">
         <button 
           onClick={() => setActiveTab('wallet')}
           className={cn(
-            "flex-1 py-2 px-3 sm:py-2.5 sm:px-4 rounded-xl font-display font-bold text-[10px] sm:text-sm transition-all whitespace-nowrap",
+            "flex-1 py-2.5 px-4 rounded-xl font-display font-bold text-sm transition-all whitespace-nowrap",
             activeTab === 'wallet' ? "bg-indigo-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
           )}
         >
@@ -662,7 +530,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
         <button 
           onClick={() => setActiveTab('accounts')}
           className={cn(
-            "flex-1 py-2 px-3 sm:py-2.5 sm:px-4 rounded-xl font-display font-bold text-[10px] sm:text-sm transition-all whitespace-nowrap",
+            "flex-1 py-2.5 px-4 rounded-xl font-display font-bold text-sm transition-all whitespace-nowrap",
             activeTab === 'accounts' ? "bg-indigo-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
           )}
         >
@@ -671,7 +539,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
         <button 
           onClick={() => setActiveTab('recurring')}
           className={cn(
-            "flex-1 py-2 px-3 sm:py-2.5 sm:px-4 rounded-xl font-display font-bold text-[10px] sm:text-sm transition-all whitespace-nowrap",
+            "flex-1 py-2.5 px-4 rounded-xl font-display font-bold text-sm transition-all whitespace-nowrap",
             activeTab === 'recurring' ? "bg-indigo-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"
           )}
         >
@@ -1127,21 +995,25 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
                       ⚙️ Edit
                     </button>
                   </div>
-                  <div className="h-2 bg-white/20 rounded-full overflow-hidden mb-2">
-                    <div 
-                      className={cn(
-                        "h-full rounded-full transition-all duration-500",
-                        wallet.balance > 0 
-                          ? ((wallet.committed / wallet.balance) > 0.9 ? "bg-red-400" : (wallet.committed / wallet.balance) > 0.7 ? "bg-amber-400" : "bg-emerald-400")
-                          : "bg-slate-400/50"
-                      )} 
-                      style={{ width: `${wallet.balance > 0 ? Math.min(100, (wallet.committed / wallet.balance) * 100) : 0}%` }}
-                    ></div>
-                  </div>
-                  <div className="flex justify-between text-[10px] font-bold opacity-70">
-                    <span>{wallet.balance > 0 ? Math.round((wallet.committed / wallet.balance) * 100) : 0}% used</span>
-                    <button className="hover:underline">+ Record Spend</button>
-                  </div>
+                  {(() => {
+                    const usedPercent = (wallet.balance && wallet.balance > 0) ? Math.round((wallet.committed / wallet.balance) * 100) : 0;
+                    const barColor = usedPercent >= 100 ? "bg-red-400" : (usedPercent === 0 ? "bg-white/10" : (usedPercent > 80 ? "bg-amber-400" : "bg-emerald-400"));
+                    
+                    return (
+                      <>
+                        <div className="h-2 bg-white/20 rounded-full overflow-hidden mb-2">
+                          <div 
+                            className={cn("h-full rounded-full transition-all duration-500", barColor)}
+                            style={{ width: `${Math.min(100, usedPercent)}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between text-[10px] font-bold opacity-70">
+                          <span>{usedPercent}% used</span>
+                          <button className="hover:underline">+ Record Spend</button>
+                        </div>
+                      </>
+                    );
+                  })()}
                   <div className="grid grid-cols-3 gap-2 mt-6 bg-white/10 p-3 rounded-xl backdrop-blur-sm">
                     <div className="text-center border-r border-white/10">
                       <p className="text-[8px] font-black uppercase opacity-60">Balance</p>
@@ -1159,287 +1031,34 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
                 </div>
               </div>
 
-              <section>
+                  <section>
                 <h3 className="font-display font-bold text-lg mb-4 px-2">✉️ Spending Envelopes</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  {Object.values(wallet.envelopes).map((env: any, idx) => (
-                    <EnvelopeCard 
-                      key={idx}
-                      icon={env.icon} 
-                      name={env.name} 
-                      spent={env.spent} 
-                      budget={env.budget} 
-                      color={env.spent > env.budget ? "red" : "emerald"} 
-                    />
-                  ))}
+                  {Object.values(wallet.envelopes).map((env: any, idx) => {
+                    const isOverBudget = env.spent > env.budget;
+                    const isNearLimit = env.spent > env.budget * 0.8;
+                    const hasNoBudget = !env.budget || env.budget === 0;
+                    
+                    let statusColor = "emerald";
+                    if (hasNoBudget || env.spent === 0) statusColor = "slate";
+                    else if (isOverBudget) statusColor = "red";
+                    else if (isNearLimit) statusColor = "amber";
+
+                    return (
+                      <EnvelopeCard 
+                        key={idx}
+                        icon={env.icon} 
+                        name={env.name} 
+                        spent={env.spent} 
+                        budget={env.budget} 
+                        color={statusColor} 
+                      />
+                    );
+                  })}
                 </div>
               </section>
 
-              <section>
-                <div className="flex justify-between items-center mb-4 px-2">
-                  <h3 className="font-display font-bold text-lg">👨‍👩‍👧 Family Vault</h3>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setIsMemberModalOpen(true)}
-                      className="text-indigo-600 text-[10px] font-black uppercase tracking-widest bg-indigo-50 px-3 py-1.5 rounded-full flex items-center gap-1"
-                    >
-                      <Plus size={10} /> Member
-                    </button>
-                    <button 
-                      onClick={() => setIsGoalModalOpen(true)}
-                      className="text-indigo-600 text-[10px] font-black uppercase tracking-widest bg-indigo-50 px-3 py-1.5 rounded-full flex items-center gap-1"
-                    >
-                      <Plus size={10} /> Goal
-                    </button>
-                  </div>
-                </div>
-                <div className="glass-card p-6 rounded-2xl space-y-6">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Shared family financial goals</p>
-                  
-                  <div className="space-y-3">
-                    {familyMembers.length > 0 ? (
-                      familyMembers.map(member => (
-                        <div key={member.id} className="flex justify-between items-center group">
-                          <FamilyMemberItem 
-                            name={member.name} 
-                            role={member.role} 
-                            contribution={formatCurrency(member.contribution)} 
-                            initial={member.initial} 
-                            color={member.color} 
-                          />
-                          <button 
-                            onClick={() => setConfirmDelete({ type: 'member', id: member.id })}
-                            className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">No family members added</p>
-                      </div>
-                    )}
-                  </div>
 
-                  <div className="pt-6 border-t border-slate-50 space-y-4">
-                    {familyGoals.length > 0 ? (
-                      familyGoals.map(goal => {
-                        const linkedAccounts = accounts.filter(a => a.linkedGoalId === goal.id);
-                        const linkedTotal = linkedAccounts.reduce((acc, a) => acc + a.amt, 0);
-                        const totalSaved = goal.saved + linkedTotal;
-                        const pct = Math.min(100, (totalSaved / goal.target) * 100);
-                        return (
-                          <div key={goal.id} className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-3 relative group">
-                            <button 
-                              onClick={() => setConfirmDelete({ type: 'goal', id: goal.id })}
-                              className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                            <div className="flex justify-between items-center">
-                              <h4 className="font-display font-bold text-sm">{goal.name}</h4>
-                              <span className="bg-white/50 text-indigo-600 text-[8px] font-black px-2 py-0.5 rounded-full uppercase">Shared</span>
-                            </div>
-                            <div className="h-2 bg-white rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${pct}%` }}
-                                className="h-full bg-indigo-500 rounded-full"
-                              />
-                            </div>
-                            <div className="flex justify-between text-[10px] font-bold">
-                              <span className="text-slate-500">{formatCompactNumber(totalSaved)} saved / {formatCompactNumber(goal.target)} target</span>
-                              <span className="text-indigo-600">{Math.round(pct)}% · ETA {goal.eta}</span>
-                            </div>
-
-                            {linkedAccounts.length > 0 && (
-                              <div className="flex flex-wrap gap-2 pt-1">
-                                {linkedAccounts.map(la => (
-                                  <span key={la.id} className="text-[8px] font-black bg-white/40 text-slate-500 px-2 py-0.5 rounded-md border border-white/50">
-                                    🔗 {la.name} ({formatCompactNumber(la.amt)})
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            
-                            {/* Contributions Breakdown */}
-                            <div className="flex gap-1 h-1.5 mt-2">
-                              {familyMembers.map(m => {
-                                const contrib = goal.contributions[m.id] || 0;
-                                const mPct = (contrib / goal.target) * 100;
-                                if (mPct === 0) return null;
-                                return (
-                                  <div 
-                                    key={m.id} 
-                                    className={cn("h-full rounded-full", m.color.split(' ')[0])} 
-                                    style={{ flex: mPct }}
-                                  />
-                                );
-                              })}
-                            </div>
-                            
-                            <div className="flex flex-wrap gap-x-4 gap-y-2 text-[8px] font-black text-slate-400 uppercase">
-                              {familyMembers.map(m => {
-                                const contrib = goal.contributions[m.id] || 0;
-                                const mPct = goal.saved > 0 ? (contrib / goal.saved) * 100 : 0;
-                                if (contrib === 0) return null;
-                                return (
-                                  <span key={m.id} className="flex items-center gap-1">
-                                    <div className={cn("w-1.5 h-1.5 rounded-full", m.color.split(' ')[0])}></div> 
-                                    {m.name} {Math.round(mPct)}%
-                                  </span>
-                                );
-                              })}
-                            </div>
-
-                            <button 
-                              onClick={() => {
-                                setSelectedGoal(goal);
-                                setIsContributeModalOpen(true);
-                              }}
-                              className="w-full mt-2 py-2 bg-white border border-indigo-100 rounded-xl text-indigo-600 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
-                            >
-                              <Coins size={12} /> Contribute to Goal
-                            </button>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                        <Target className="mx-auto text-slate-300 mb-2" size={24} />
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">No family goals set up yet</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              {/* Family Member Modal */}
-              <Modal isOpen={isMemberModalOpen} onClose={() => setIsMemberModalOpen(false)} title="Add Family Member">
-                <form onSubmit={handleAddMember} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Name</label>
-                    <input 
-                      type="text" 
-                      value={memberName}
-                      onChange={(e) => setMemberName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Role</label>
-                    <input 
-                      type="text" 
-                      value={memberRole}
-                      onChange={(e) => setMemberRole(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                      placeholder="e.g. Spouse, Father"
-                    />
-                  </div>
-                  <button 
-                    type="submit" 
-                    disabled={isSubmitting}
-                    className="w-full bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50"
-                  >
-                    Add Member
-                  </button>
-                </form>
-              </Modal>
-
-              {/* Family Goal Modal */}
-              <Modal isOpen={isGoalModalOpen} onClose={() => setIsGoalModalOpen(false)} title="Add Family Goal">
-                <form onSubmit={handleAddGoal} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Goal Name</label>
-                    <input 
-                      type="text" 
-                      value={goalName}
-                      onChange={(e) => setGoalName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                      required
-                      placeholder="e.g. Family Home"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Target Amount (₹)</label>
-                    <input 
-                      type="number" 
-                      value={goalTarget}
-                      onChange={(e) => setGoalTarget(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Target ETA</label>
-                    <input 
-                      type="text" 
-                      value={goalEta}
-                      onChange={(e) => setGoalEta(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                      placeholder="e.g. 2029"
-                    />
-                  </div>
-                  <button 
-                    type="submit" 
-                    disabled={isSubmitting}
-                    className="w-full bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50"
-                  >
-                    Create Goal
-                  </button>
-                </form>
-              </Modal>
-
-              <Modal isOpen={isContributeModalOpen} onClose={() => { setIsContributeModalOpen(false); setError(null); }} title="Contribute to Goal">
-                <form onSubmit={handleContribute} className="space-y-4">
-                  {error && (
-                    <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl text-xs font-bold">
-                      ⚠️ {error}
-                    </div>
-                  )}
-                  <div className="bg-indigo-50 p-4 rounded-xl mb-4">
-                    <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1">Available Free Balance</p>
-                    <p className="text-xl font-display font-black text-indigo-600">{formatCurrency(wallet?.free || 0)}</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Select Member</label>
-                    <select 
-                      value={selectedMember}
-                      onChange={(e) => setSelectedMember(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                      required
-                    >
-                      <option value="">Choose a member...</option>
-                      {familyMembers.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Contribution Amount (₹)</label>
-                    <input 
-                      type="number" 
-                      value={contributionAmount}
-                      onChange={(e) => setContributionAmount(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
-                      required
-                      max={wallet?.free || 0}
-                    />
-                  </div>
-
-                  <button 
-                    type="submit" 
-                    disabled={isSubmitting || !selectedMember || !contributionAmount}
-                    className="w-full bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <Coins size={18} /> Confirm Contribution
-                  </button>
-                </form>
-              </Modal>
             </>
           )}
         </div>
@@ -1514,7 +1133,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
 }
 
 function EnvelopeCard({ icon, name, spent, budget, color }: { icon: string, name: string, spent: number, budget: number, color: string }) {
-  const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : (spent > 0 ? 100 : 0);
+  const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
   const colors: Record<string, string> = {
     emerald: "bg-emerald-500",
     red: "bg-red-500",
@@ -1522,14 +1141,12 @@ function EnvelopeCard({ icon, name, spent, budget, color }: { icon: string, name
     slate: "bg-slate-400",
   };
 
-  const barColor = budget === 0 && spent === 0 ? "slate" : color;
-
   return (
     <div className="glass-card p-4 rounded-2xl relative overflow-hidden">
       <div className="text-2xl mb-2">{icon}</div>
       <p className="text-[10px] font-bold text-slate-500 mb-2">{name}</p>
       <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden mb-2">
-        <div className={cn("h-full rounded-full transition-all", colors[barColor])} style={{ width: `${pct}%` }}></div>
+        <div className={cn("h-full rounded-full", colors[color])} style={{ width: `${pct}%` }}></div>
       </div>
       <p className="font-display font-extrabold text-base">{formatCurrency(budget - spent)}</p>
       <p className="text-[9px] font-medium text-slate-400">Spent {formatCurrency(spent)} / {formatCurrency(budget)}</p>
@@ -1722,19 +1339,4 @@ function AccountCard({ account, onEdit, onDelete }: { account: Account, onEdit: 
   );
 }
 
-function FamilyMemberItem({ name, role, contribution, initial, color }: { name: string, role: string, contribution: string, initial: string, color: string }) {
-  return (
-    <div className="flex items-center gap-4 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white font-display font-black text-sm bg-gradient-to-br", color)}>
-        {initial}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm">{name}</p>
-        <p className="text-[10px] text-slate-400 font-medium">{role}</p>
-      </div>
-      <div className="text-right">
-        <p className="font-display font-extrabold text-sm text-indigo-600">{contribution}</p>
-      </div>
-    </div>
-  );
-}
+

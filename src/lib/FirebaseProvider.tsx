@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { Transaction, Holding, Account, Wallet, FamilyGoal, FamilyMember, Split, SpendingFine, UserProfile } from '../types';
+import { Transaction, Holding, Account, Wallet, FamilyGoal, FamilyMember, Split, SpendingFine, UserProfile, SharedEnvelope } from '../types';
 
 interface FirebaseContextType {
   user: User | null;
@@ -17,6 +17,7 @@ interface FirebaseContextType {
   splits: Split[];
   fines: SpendingFine[];
   userProfile: UserProfile | null;
+  sharedEnvelopes: SharedEnvelope[];
 }
 
 const FirebaseContext = createContext<FirebaseContextType | undefined>(undefined);
@@ -34,6 +35,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [splits, setSplits] = useState<Split[]>([]);
   const [fines, setFines] = useState<SpendingFine[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [sharedEnvelopes, setSharedEnvelopes] = useState<SharedEnvelope[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -119,15 +121,6 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setAccounts(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'accounts'));
 
-    const splitsQuery = query(
-      collection(db, 'splits'),
-      where('uid', '==', user.uid),
-      orderBy('date', 'desc')
-    );
-    const unsubSplits = onSnapshot(splitsQuery, (snapshot) => {
-      setSplits(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Split)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'splits'));
-
     const finesQuery = query(
       collection(db, 'fines'),
       where('uid', '==', user.uid)
@@ -142,42 +135,62 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubHoldings();
       unsubAccounts();
       unsubWallet();
-      unsubSplits();
       unsubFines();
     };
   }, [user]);
 
-  // Separate listener for household-shared collections
+  // Separate listener for item-level shared collections
   useEffect(() => {
-    if (!userProfile?.householdId) {
+    if (!user) {
       setFamilyGoals([]);
       setFamilyMembers([]);
+      setSharedEnvelopes([]);
       return;
     }
 
-    const householdId = userProfile.householdId;
-
+    // Items where user is invited
     const familyGoalsQuery = query(
       collection(db, 'familyGoals'),
-      where('uid', '==', householdId) // 'uid' field stores the householdId for these collections
+      where('allowedUids', 'array-contains', user.uid)
     );
     const unsubFamilyGoals = onSnapshot(familyGoalsQuery, (snapshot) => {
       setFamilyGoals(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as FamilyGoal)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'familyGoals'));
 
+    // My connections (family members I added)
     const familyMembersQuery = query(
       collection(db, 'familyMembers'),
-      where('uid', '==', householdId)
+      where('ownerUid', '==', user.uid)
     );
     const unsubFamilyMembers = onSnapshot(familyMembersQuery, (snapshot) => {
       setFamilyMembers(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as FamilyMember)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'familyMembers'));
 
+    // Envelopes where user is invited
+    const sharedEnvelopesQuery = query(
+      collection(db, 'sharedEnvelopes'),
+      where('allowedUids', 'array-contains', user.uid)
+    );
+    const unsubSharedEnvelopes = onSnapshot(sharedEnvelopesQuery, (snapshot) => {
+      setSharedEnvelopes(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SharedEnvelope)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'sharedEnvelopes'));
+
+    // Splits where user is invited or owner
+    const splitsQuery = query(
+      collection(db, 'splits'),
+      where('allowedUids', 'array-contains', user.uid)
+    );
+    const unsubSplits = onSnapshot(splitsQuery, (snapshot) => {
+      setSplits(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Split)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'splits'));
+
     return () => {
       unsubFamilyGoals();
       unsubFamilyMembers();
+      unsubSharedEnvelopes();
+      unsubSplits();
     };
-  }, [userProfile?.householdId]);
+  }, [user]);
 
   return (
     <FirebaseContext.Provider value={{ 
@@ -192,7 +205,8 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       familyMembers,
       splits,
       fines,
-      userProfile
+      userProfile,
+      sharedEnvelopes
     }}>
       {children}
     </FirebaseContext.Provider>

@@ -58,7 +58,7 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
   }, [transactions, accounts]);
 
   const tax80CLimit = 150000;
-  const tax80CPct = Math.min(100, Math.round((taxSavings80C / tax80CLimit) * 100));
+  const tax80CPct = tax80CLimit > 0 ? Math.min(100, Math.round((taxSavings80C / tax80CLimit) * 100)) : 0;
   
   const now = new Date();
   const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
@@ -198,6 +198,39 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
     };
   }, [transactions, savingsRate, accounts, walletBalance, monthlyExpenses, tax80CPct]);
 
+  // Gamified Wins
+  const zeroSpendStreak = useMemo(() => {
+    let streak = 0;
+    const currentDate = new Date();
+    currentDate.setHours(0,0,0,0);
+    
+    // Check backwards day by day for up to 365 days
+    for (let i = 0; i < 365; i++) {
+      const checkDateStr = new Date(currentDate.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      const hasExpenseThatDay = transactions.some(t => 
+        t.date === checkDateStr && 
+        t.type === 'expense' && 
+        !['Savings', 'Investment', 'Debt'].includes(t.category)
+      );
+      
+      if (!hasExpenseThatDay) {
+        streak++;
+      } else {
+        // If it's today and we have an expense, we don't break immediately, streak is just 0.
+        // If it's a past day, the streak is broken.
+        if (i === 0) continue; 
+        break;
+      }
+    }
+    return streak;
+  }, [transactions]);
+
+  const isBudgetNinja = useMemo(() => {
+    if (!wallet || !wallet.envelopes || Object.keys(wallet.envelopes).length === 0) return false;
+    return Object.values(wallet.envelopes).every(env => env.budget > 0 && env.spent <= env.budget * 0.8);
+  }, [wallet]);
+
   // 3. Emergency Fund Tracker
   const efStatus = useMemo(() => {
     const current = accounts.filter(a => ['savings', 'fd', 'rd'].includes(a.type)).reduce((acc, a) => acc + a.amt, 0);
@@ -279,23 +312,20 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
   };
 
   return (
-    <div className="space-y-6 md:space-y-8 pb-10">
+    <div className="space-y-8 pb-10">
       {/* Header & Quick Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 sm:px-0">
-        <div className="flex flex-col">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
+        <div>
           <p className="text-slate-400 text-xs font-medium tracking-wide uppercase">{getGreeting()},</p>
-          <div className="flex items-center gap-2">
-            <h2 className="font-display font-extrabold text-2xl md:text-3xl text-slate-900 tracking-tight">
-              {user?.displayName?.split(' ')[0] || 'User'}
-            </h2>
-            <span className="text-2xl">👋</span>
-          </div>
+          <h2 className="font-display font-extrabold text-3xl text-slate-900 tracking-tight">
+            {user?.displayName?.split(' ')[0] || 'User'} 👋
+          </h2>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="flex items-center gap-3">
           <button 
             onClick={() => window.dispatchEvent(new CustomEvent('setActiveTab', { detail: 'transactions' }))}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group active:scale-95"
+            className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group"
           >
             <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
               <Plus size={18} />
@@ -303,20 +333,21 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
             <span className="text-sm font-bold text-slate-700">Add Transaction</span>
           </button>
           
-          <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group">
+          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group">
             <div className={cn(
               "w-10 h-10 rounded-xl flex items-center justify-center font-display font-black text-lg relative z-10",
               healthScore.total > 80 ? "bg-emerald-50 text-emerald-600" : 
               healthScore.total > 60 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
             )}>
               {healthScore.total}
+              {/* Pulse Animation */}
               <div className={cn(
                 "absolute inset-0 rounded-xl animate-ping opacity-20",
                 healthScore.total > 80 ? "bg-emerald-400" : 
                 healthScore.total > 60 ? "bg-amber-400" : "bg-red-400"
               )}></div>
             </div>
-            <div className="relative z-10">
+            <div className="hidden sm:block relative z-10">
               <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Wealth Rank</p>
               <p className={cn("text-[10px] font-bold", healthScore.rankColor)}>
                 {healthScore.rankIcon} {healthScore.rank}
@@ -385,6 +416,50 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
         </section>
       </div>
 
+      {/* Gamification Row: Zero Spend & Budget Ninja */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        {/* Zero Spend Streak */}
+        <div className="glass-card p-6 rounded-[32px] flex items-center justify-between relative overflow-hidden group">
+          <div className="absolute -right-10 -bottom-10 opacity-10 group-hover:opacity-20 transition-opacity">
+            <span className="text-[120px]">🔥</span>
+          </div>
+          <div>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Zero-Spend Streak</h3>
+            <div className="flex items-baseline gap-2">
+              <span className="font-display font-black text-4xl text-orange-500">{zeroSpendStreak}</span>
+              <span className="text-xs font-bold text-slate-500 uppercase">Days</span>
+            </div>
+            <p className="text-xs text-slate-500 mt-2 max-w-[200px] leading-relaxed">
+              {zeroSpendStreak > 0 ? "You're on fire! Keep saving." : "Record a day without unbudgeted expenses to start a streak!"}
+            </p>
+          </div>
+          <div className="w-16 h-16 rounded-3xl bg-orange-50 flex items-center justify-center text-3xl shadow-inner z-10">
+            🔥
+          </div>
+        </div>
+
+        {/* Budget Ninja Badge */}
+        <div className={cn("glass-card p-6 rounded-[32px] flex items-center justify-between relative overflow-hidden group transition-all duration-500", isBudgetNinja ? "border-emerald-200 shadow-xl shadow-emerald-500/10 scale-[1.02]" : "")}>
+          <div className="absolute -right-10 -bottom-10 opacity-10 group-hover:opacity-20 transition-opacity">
+            <span className="text-[120px]">🥷</span>
+          </div>
+          <div>
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Status Badge</h3>
+            <div className="flex items-center gap-2">
+              <span className={cn("font-display font-black text-2xl", isBudgetNinja ? "text-emerald-500" : "text-slate-400")}>
+                {isBudgetNinja ? "Budget Ninja" : "Spender"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-2 max-w-[200px] leading-relaxed">
+              {isBudgetNinja ? "All your active envelopes are safely in the green zone!" : "Keep your envelopes under 80% usage to unlock this badge."}
+            </p>
+          </div>
+          <div className={cn("w-16 h-16 rounded-3xl flex items-center justify-center text-3xl shadow-inner transition-all duration-500 z-10", isBudgetNinja ? "bg-emerald-50 scale-110" : "bg-slate-50 grayscale opacity-50")}>
+            🥷
+          </div>
+        </div>
+      </div>
+
       {/* Unique Feature: The Freedom Engine */}
       <section className="relative overflow-hidden bg-slate-900 rounded-[40px] p-8 md:p-10 text-white shadow-2xl">
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
@@ -400,20 +475,16 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
             </div>
 
             <div className="space-y-2">
-              <p className="text-slate-400 text-xs md:text-sm font-medium">If you stopped working today, you could live for:</p>
-              <div className="flex items-baseline gap-2 md:gap-4 overflow-x-auto no-scrollbar py-2">
-                <div className="flex items-baseline gap-1 md:gap-2">
-                  <span className="font-display font-black text-4xl sm:text-5xl md:text-6xl lg:text-7xl tracking-tighter text-white">
-                    {freedomStats.years}
-                  </span>
-                  <span className="text-xs sm:text-sm md:text-xl font-display font-bold text-slate-500 uppercase tracking-widest">Years</span>
-                </div>
-                <div className="flex items-baseline gap-1 md:gap-2">
-                  <span className="font-display font-black text-4xl sm:text-5xl md:text-6xl lg:text-7xl tracking-tighter text-white">
-                    {freedomStats.days}
-                  </span>
-                  <span className="text-xs sm:text-sm md:text-xl font-display font-bold text-slate-500 uppercase tracking-widest">Days</span>
-                </div>
+              <p className="text-slate-400 text-sm font-medium">If you stopped working today, you could live for:</p>
+              <div className="flex items-baseline gap-3">
+                <span className="font-display font-black text-6xl md:text-7xl tracking-tighter text-white">
+                  {freedomStats.years}
+                </span>
+                <span className="text-2xl font-display font-bold text-slate-500 uppercase tracking-widest">Years</span>
+                <span className="font-display font-black text-6xl md:text-7xl tracking-tighter text-white">
+                  {freedomStats.days}
+                </span>
+                <span className="text-2xl font-display font-bold text-slate-500 uppercase tracking-widest">Days</span>
               </div>
             </div>
 
@@ -574,8 +645,8 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full">Diversification</span>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12 pl-0 md:pl-10">
-          <div className="relative w-48 h-48 md:w-56 md:h-56 shrink-0">
+          <div className="flex flex-col md:flex-row items-center gap-10">
+            <div className="relative w-48 h-48 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <RePieChart>
                   <Pie
@@ -675,8 +746,8 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-6 md:gap-12 items-center">
-            <div className="relative w-32 h-32 md:w-40 md:h-40 flex items-center justify-center shrink-0">
+          <div className="flex flex-col md:flex-row gap-12 items-center">
+            <div className="relative w-40 h-40 flex items-center justify-center shrink-0">
               <svg className="w-full h-full transform -rotate-90">
                 <circle cx="80" cy="80" r="72" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
                 <circle 
@@ -1070,7 +1141,7 @@ function SpatialNetWorthCard({ netWorth, portfolioPerformance, assets, liabiliti
           </div>
         </div>
         
-        <h2 className="font-display font-extrabold text-4xl sm:text-5xl md:text-6xl tracking-tighter mb-6 drop-shadow-lg">
+        <h2 className="font-display font-extrabold text-5xl md:text-6xl tracking-tighter mb-6 drop-shadow-lg">
           {formatCurrency(netWorth)}
         </h2>
 

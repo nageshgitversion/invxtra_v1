@@ -77,6 +77,25 @@ export default function Profile() {
     { label: 'Accounts', value: accounts.length, icon: Wallet, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
+  const netWorth = holdings.reduce((acc, h) => acc + h.current, 0) + accounts.filter(a => a.type !== 'loan').reduce((acc, a) => acc + a.amt, 0) + (wallet?.balance || 0) - Math.abs(accounts.filter(a => a.type === 'loan').reduce((acc, a) => acc + a.amt, 0));
+
+  let badgeName = "Bronze Piggy";
+  let badgeIcon = "🥉";
+  let badgeDesc = "Keep saving to reach ₹50k!";
+  if (netWorth > 2000000) {
+    badgeName = "Diamond Reserve";
+    badgeIcon = "💎";
+    badgeDesc = "Top-tier wealth generator.";
+  } else if (netWorth > 500000) {
+    badgeName = "Golden Vault";
+    badgeIcon = "🥇";
+    badgeDesc = "Next goal: ₹20L";
+  } else if (netWorth > 50000) {
+    badgeName = "Silver Safe";
+    badgeIcon = "🥈";
+    badgeDesc = "Next goal: ₹5L";
+  }
+
   return (
     <div className="space-y-6 pb-20">
       <div className="px-2 pt-2">
@@ -110,14 +129,24 @@ export default function Profile() {
             <div className="w-32 h-32 rounded-[40px] bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-5xl font-display font-black shadow-2xl shadow-indigo-200 group-hover:scale-105 transition-transform duration-300">
               {user?.displayName?.charAt(0) || 'U'}
             </div>
-            <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-white rounded-2xl shadow-lg flex items-center justify-center text-indigo-600 border border-indigo-50">
-              <Award size={20} />
+            <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-white rounded-2xl shadow-xl flex items-center justify-center border border-indigo-50 group-hover:scale-110 transition-transform text-2xl z-10" title={badgeName}>
+              {badgeIcon}
             </div>
           </div>
 
           <div className="flex-1 text-center md:text-left space-y-2">
-            <h3 className="font-display font-black text-3xl text-slate-900">{user?.displayName}</h3>
-            <div className="flex flex-wrap justify-center md:justify-start gap-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-2">
+              <h3 className="font-display font-black text-3xl text-slate-900">{user?.displayName}</h3>
+              <span className="hidden md:inline-flex bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold tracking-widest uppercase">
+                {badgeName}
+              </span>
+            </div>
+            
+            <p className="text-xs text-slate-500 font-medium md:hidden bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-lg inline-block uppercase tracking-widest font-black">
+              {badgeName}
+            </p>
+
+            <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-1">
               <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
                 <Mail size={16} className="text-indigo-400" />
                 {user?.email}
@@ -131,7 +160,7 @@ export default function Profile() {
 
           <button 
             onClick={logout}
-            className="px-6 py-3 rounded-2xl bg-red-50 text-red-600 font-display font-bold text-sm hover:bg-red-100 transition-all flex items-center gap-2"
+            className="px-6 py-3 rounded-2xl bg-red-50 text-red-600 font-display font-bold text-sm hover:bg-red-100 transition-all flex items-center gap-2 shrink-0"
           >
             <LogOut size={18} />
             Logout

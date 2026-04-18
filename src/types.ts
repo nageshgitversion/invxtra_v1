@@ -115,6 +115,8 @@ export interface FamilyGoal {
   id: string;
   uid: string;
   householdId?: string; // Optional for backward compatibility
+  ownerUid?: string; // new field for item-level sharing
+  allowedUids?: string[]; // array of UIDs allowed to see and contribute
   name: string;
   target: number;
   saved: number;
@@ -124,14 +126,15 @@ export interface FamilyGoal {
 
 export interface Split {
   id: string;
-  uid: string;
+  uid: string; // owner
+  allowedUids?: string[]; // for multi-partner visibility
   name: string;
-  desc: string;
+  desc?: string;
   date: string;
-  amount: number;
-  type: 'owe_you' | 'you_owe';
-  initial: string;
-  color: string;
+  totalAmount: number;
+  payerUid: string; // Who paid the whole bill
+  participants: Record<string, number>; // uid -> share amount
+  status: 'pending' | 'settled';
 }
 
 export interface SpendingFine {
@@ -144,3 +147,15 @@ export interface SpendingFine {
   active: boolean;
 }
 
+export interface SharedEnvelope {
+  id: string;
+  uid: string; // householdId (legacy)
+  ownerUid?: string; // new field for item-level sharing
+  allowedUids?: string[]; // array of UIDs allowed to see and contribute
+  name: string;
+  icon: string;
+  budget: number;
+  spent: number;
+  color: string;
+  contributions: Record<string, number>; // memberId -> amount funded
+}

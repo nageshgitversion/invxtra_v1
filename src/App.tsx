@@ -38,7 +38,7 @@ import Savings from './components/Savings';
 import Portfolio from './components/Portfolio';
 import Analytics from './components/Analytics';
 import Planner from './components/Planner';
-import SmartSplit from './components/SmartSplit';
+
 import AIChat from './components/AIChat';
 import TaxPlanner from './components/TaxPlanner';
 import ScenarioSimulator from './components/ScenarioSimulator';
@@ -55,6 +55,8 @@ import WalletModal from './components/WalletModal';
 import Logo from './components/Logo';
 import CommandPalette from './components/CommandPalette';
 
+import SmartSplit from './components/SmartSplit';
+
 export default function App() {
   const { 
     user, 
@@ -64,7 +66,8 @@ export default function App() {
     accounts, 
     wallet,
     familyGoals,
-    splits
+    splits,
+    familyMembers
   } = useFirebase();
   const [activeTab, setActiveTab] = useState('home');
   const [insights, setInsights] = useState<string[]>([]);
@@ -210,7 +213,7 @@ export default function App() {
       case 'planner': return <Planner wallet={wallet} familyGoals={familyGoals} transactions={transactions} />;
       case 'taxplanner': return <TaxPlanner />;
       case 'simulator': return <ScenarioSimulator />;
-      case 'split': return <SmartSplit splits={splits} />;
+      case 'split': return <SmartSplit />;
       case 'household': return <Household />;
       case 'settings': return <Settings />;
       case 'profile': return <Profile />;

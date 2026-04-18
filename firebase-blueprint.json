@@ -120,19 +120,20 @@
     },
     "Split": {
       "title": "Split",
-      "description": "A split expense or debt tracking item.",
+      "description": "A collaborative split bill or settlement.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
+        "allowedUids": { "type": "array", "items": { "type": "string" } },
         "name": { "type": "string" },
         "desc": { "type": "string" },
         "date": { "type": "string", "format": "date" },
-        "amount": { "type": "number" },
-        "type": { "type": "string", "enum": ["owe_you", "you_owe"] },
-        "initial": { "type": "string" },
-        "color": { "type": "string" }
+        "totalAmount": { "type": "number" },
+        "payerUid": { "type": "string" },
+        "participants": { "type": "object" },
+        "status": { "type": "string", "enum": ["pending", "settled"] }
       },
-      "required": ["uid", "name", "amount", "type"]
+      "required": ["uid", "name", "totalAmount", "payerUid", "participants", "status"]
     },
     "SpendingFine": {
       "title": "Spending Fine",
@@ -147,6 +148,21 @@
         "active": { "type": "boolean" }
       },
       "required": ["uid", "category", "limit", "fineAmount", "active"]
+    },
+    "SharedEnvelope": {
+      "title": "Shared Envelope",
+      "description": "A collaborative spending envelope shared across a household.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "budget": { "type": "number" },
+        "spent": { "type": "number" },
+        "color": { "type": "string" },
+        "contributions": { "type": "object" }
+      },
+      "required": ["uid", "name", "budget", "spent"]
     }
   },
   "firestore": {
@@ -185,6 +201,10 @@
     "/fines/{id}": {
       "schema": "SpendingFine",
       "description": "Behavioral spending fines collection."
+    },
+    "/sharedEnvelopes/{id}": {
+      "schema": "SharedEnvelope",
+      "description": "Shared envelopes collection."
     }
   }
 }

@@ -9,6 +9,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function canAccess(data) {
+      return isSignedIn() && (
+        data.ownerUid == request.auth.uid || 
+        data.uid == request.auth.uid ||
+        (data.allowedUids != null && request.auth.uid in data.allowedUids) ||
+        (data.householdId != null && data.householdId == getUserData().householdId) ||
+        (data.uid != null && data.uid == getUserData().householdId)
+      );
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
       allow write: if isSignedIn() && request.auth.uid == userId;
@@ -16,56 +34,63 @@ service cloud.firestore {
 
     match /transactions/{id} {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isVerified() && request.resource.data.uid == request.auth.uid;
+      allow update: if isVerified() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isVerified() && resource.data.uid == request.auth.uid;
     }
 
     match /accounts/{id} {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isVerified() && request.resource.data.uid == request.auth.uid;
+      allow update: if isVerified() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isVerified() && resource.data.uid == request.auth.uid;
     }
 
     match /holdings/{id} {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isVerified() && request.resource.data.uid == request.auth.uid;
+      allow update: if isVerified() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isVerified() && resource.data.uid == request.auth.uid;
     }
 
     match /wallets/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow write: if isSignedIn() && request.auth.uid == uid;
+      allow write: if isVerified() && request.auth.uid == uid;
     }
 
     match /familyMembers/{id} {
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow read: if canAccess(resource.data);
+      allow create: if isVerified() && canAccess(request.resource.data);
+      allow update: if isVerified() && canAccess(resource.data) && canAccess(request.resource.data);
+      allow delete: if isVerified() && canAccess(resource.data);
     }
 
     match /familyGoals/{id} {
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow read: if canAccess(resource.data);
+      allow create: if isVerified() && canAccess(request.resource.data);
+      allow update: if isVerified() && canAccess(resource.data) && canAccess(request.resource.data);
+      allow delete: if isVerified() && canAccess(resource.data);
+    }
+
+    match /sharedEnvelopes/{id} {
+      allow read: if canAccess(resource.data);
+      allow create: if isVerified() && canAccess(request.resource.data);
+      allow update: if isVerified() && canAccess(resource.data) && canAccess(request.resource.data);
+      allow delete: if isVerified() && canAccess(resource.data);
     }
 
     match /splits/{id} {
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow read: if canAccess(resource.data);
+      allow create: if isVerified() && canAccess(request.resource.data);
+      allow update: if isVerified() && canAccess(resource.data) && canAccess(request.resource.data);
+      allow delete: if isVerified() && canAccess(resource.data);
     }
 
     match /fines/{id} {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isVerified() && request.resource.data.uid == request.auth.uid;
+      allow update: if isVerified() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isVerified() && resource.data.uid == request.auth.uid;
     }
 
     match /test/connection {
