@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, useScroll, useTransform } from 'motion/react';
-import { ShieldCheck, Sparkles, Users, Coffee, ArrowRight, Zap, PieChart } from 'lucide-react';
+import { ShieldCheck, Sparkles, Users, Coffee, ArrowRight, Zap, PieChart, BarChart3 } from 'lucide-react';
 import Logo from './Logo';
 
 interface LandingPageProps {
@@ -125,7 +125,54 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.3 }}
-              className="lg:col-span-2 glass-card p-10 rounded-[40px] border border-white/10 bg-white/5 backdrop-blur-xl relative overflow-hidden group"
+              className="glass-card p-10 rounded-[40px] border border-white/10 bg-white/5 backdrop-blur-xl relative overflow-hidden group"
+            >
+              <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-blue-500/20 rounded-full blur-[60px] group-hover:bg-blue-500/30 transition-colors"></div>
+              <BarChart3 className="text-blue-400 mb-6" size={40} />
+              <h3 className="font-display font-bold text-2xl text-white mb-4">Investment Alpha</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Track Stocks, MFs, FDs, and RDs in one place. Calculate XIRR returns and see how your portfolio stacks up against inflation.
+              </p>
+            </motion.div>
+
+            {/* Feature 5 */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.4 }}
+              className="glass-card p-10 rounded-[40px] border border-white/10 bg-white/5 backdrop-blur-xl relative overflow-hidden group"
+            >
+              <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-[60px] group-hover:bg-emerald-500/30 transition-colors"></div>
+              <ShieldCheck className="text-emerald-400 mb-6" size={40} />
+              <h3 className="font-display font-bold text-2xl text-white mb-4">Tax Optimization</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Built-in 80C and Section 24 trackers. Know exactly how much more you need to invest to minimize your tax liability.
+              </p>
+            </motion.div>
+
+            {/* Feature 6 */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.5 }}
+              className="glass-card p-10 rounded-[40px] border border-white/10 bg-white/5 backdrop-blur-xl relative overflow-hidden group"
+            >
+              <div className="absolute -right-10 -top-10 w-40 h-40 bg-orange-500/20 rounded-full blur-[60px] group-hover:bg-orange-500/30 transition-colors"></div>
+              <Zap className="text-orange-400 mb-6" size={40} />
+              <h3 className="font-display font-bold text-2xl text-white mb-4">Future Simulator</h3>
+              <p className="text-slate-400 leading-relaxed">
+                Run "What-If" scenarios. See how a 10% increase in SIP or a 5-year delay in retirement changes your lifetime wealth accumulation.
+              </p>
+            </motion.div>
+
+            {/* Feature 7 - The Chai Meter */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="lg:col-span-3 glass-card p-10 rounded-[40px] border border-white/10 bg-white/5 backdrop-blur-xl relative overflow-hidden group"
             >
               <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-amber-500/20 rounded-full blur-[80px] group-hover:bg-amber-500/30 transition-colors"></div>
               <div className="flex flex-col md:flex-row gap-8 items-center">
@@ -133,7 +180,7 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
                   <Coffee className="text-amber-400 mb-6" size={40} />
                   <h3 className="font-display font-bold text-3xl text-white mb-4">The Chai Meter</h3>
                   <p className="text-slate-400 text-lg leading-relaxed">
-                    Money isn't just numbers. We translate your spending into real-world items like "Vada Pavs" or "Netflix Subscriptions" so you actually feel the weight of your purchases.
+                    Money isn't just numbers. We translate your spending into real-world items like "Vada Pavs" or "Cutting Chais" so you actually feel the weight of your purchases.
                   </p>
                 </div>
                 <div className="w-full md:w-64 h-48 bg-[#060d1a]/50 rounded-3xl border border-white/5 flex items-center justify-center p-6 text-center">

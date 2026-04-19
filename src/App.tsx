@@ -55,6 +55,7 @@ import WalletModal from './components/WalletModal';
 import Logo from './components/Logo';
 import CommandPalette from './components/CommandPalette';
 
+import FeatureGuide from './components/FeatureGuide';
 import SmartSplit from './components/SmartSplit';
 
 export default function App() {
@@ -76,18 +77,22 @@ export default function App() {
   const [modalType, setModalType] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+  const [isFeatureGuideOpen, setIsFeatureGuideOpen] = useState(false);
   const [chatPos, setChatPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const handleTabChange = (e: any) => setActiveTab(e.detail);
     const handleOpenWallet = () => setIsWalletModalOpen(true);
+    const handleOpenFeatureGuide = () => setIsFeatureGuideOpen(true);
     
     window.addEventListener('setActiveTab', handleTabChange);
     window.addEventListener('openWalletModal', handleOpenWallet);
+    window.addEventListener('openFeatureGuide', handleOpenFeatureGuide);
     
     return () => {
       window.removeEventListener('setActiveTab', handleTabChange);
       window.removeEventListener('openWalletModal', handleOpenWallet);
+      window.removeEventListener('openFeatureGuide', handleOpenFeatureGuide);
     };
   }, []);
 
@@ -309,6 +314,14 @@ export default function App() {
           onClose={() => setIsWalletModalOpen(false)} 
           wallet={wallet} 
         />
+      </Modal>
+
+      <Modal
+        isOpen={isFeatureGuideOpen}
+        onClose={() => setIsFeatureGuideOpen(false)}
+        title="App Features & Capabilities"
+      >
+        <FeatureGuide />
       </Modal>
 
       {/* Desktop Right Panel (Optional/Conditional) */}

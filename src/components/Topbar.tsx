@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MessageSquare, TrendingUp, Bell, LogOut, User, Settings, ChevronDown } from 'lucide-react';
+import { Mic, MessageSquare, TrendingUp, Bell, LogOut, User, Settings, ChevronDown, Sparkles } from 'lucide-react';
 import { useFirebase } from '../lib/FirebaseProvider';
 import { logout } from '../lib/firebase';
 import { cn } from '../lib/utils';
@@ -74,6 +74,15 @@ export default function Topbar({ activeTab, setActiveTab }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Feature Guide */}
+        <button 
+          onClick={() => window.dispatchEvent(new CustomEvent('openFeatureGuide'))}
+          className="w-10 h-10 rounded-xl bg-white border border-indigo-100 flex items-center justify-center text-slate-400 shadow-sm hover:bg-violet-50 hover:text-violet-600 transition-colors"
+          title="See Best Features"
+        >
+          <Sparkles size={20} />
+        </button>
+
         {/* Notifications */}
         <div className="relative" ref={notifRef}>
           <button 
