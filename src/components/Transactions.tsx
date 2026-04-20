@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Mic, Filter, MicOff, X, Trash2, Repeat, Camera } from 'lucide-react';
-import { Transaction, RecurrenceFrequency, Wallet as WalletType } from '../types';
+import { Transaction, RecurrenceFrequency, Wallet as WalletType, TransactionType } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -10,6 +10,7 @@ import ImportTransactions from './ImportTransactions';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { processRecurringTransactions } from '../lib/recurrence';
 import { scanReceipt } from '../services/geminiService';
+import { FINANCIAL_CATEGORIES, CategoryName } from '../constants';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -21,6 +22,13 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenAddModal = () => setIsAddModalOpen(true);
+    window.addEventListener('openAddTransactionModal', handleOpenAddModal);
+    return () => window.removeEventListener('openAddTransactionModal', handleOpenAddModal);
+  }, []);
+
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -28,8 +36,10 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
   // Form state
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
-  const [type, setType] = useState<'income' | 'expense' | 'investment' | 'savings'>('expense');
-  const [category, setCategory] = useState('Food & Dining');
+  const [type, setType] = useState<TransactionType>('expense');
+  const [category, setCategory] = useState<CategoryName>('Expenses');
+  const [subCategory, setSubCategory] = useState('Groceries');
+  const [targetId, setTargetId] = useState<string>('none');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [isTaxDeductible, setIsTaxDeductible] = useState(false);
   const [taxSection, setTaxSection] = useState('80C');
@@ -50,6 +60,21 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
     stopListening, 
     browserSupportsSpeechRecognition 
   } = useVoiceRecognition();
+
+  const expenseSubCategories = React.useMemo(() => {
+    if (wallet && wallet.envelopes) {
+      const activeEnvs = Object.values(wallet.envelopes).filter((e: any) => e.budget > 0).map((e: any) => e.name);
+      if (activeEnvs.length > 0) return activeEnvs;
+    }
+    return FINANCIAL_CATEGORIES['Expenses'];
+  }, [wallet]);
+
+  useEffect(() => {
+    // If the currently selected category is Expenses and the subCategory is not in our dynamic list, reset it.
+    if (category === 'Expenses' && !expenseSubCategories.includes(subCategory)) {
+      setSubCategory(expenseSubCategories[0] || 'Groceries');
+    }
+  }, [category, expenseSubCategories, subCategory]);
 
   useEffect(() => {
     if (transcript && isAddModalOpen) {
@@ -116,55 +141,49 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
       const emojiMap: Record<string, string> = {
         income: '💰',
         expense: '💳',
+        debt: '📉',
         investment: '📈',
         savings: '🏦'
       };
+
+      const txData: any = {
+        uid: user.uid,
+        name,
+        amount: finalAmount,
+        type,
+        category,
+        subCategory,
+        date,
+        emoji: emojiMap[type] || '💳',
+        isRecurring,
+        recurrence: isRecurring ? recurrence : 'none',
+        isTaxDeductible,
+        taxSection: isTaxDeductible ? taxSection : null,
+        isCapitalGain,
+        gainType: isCapitalGain ? gainType : null,
+        linkedAcc: fundSource,
+        createdAt: new Date().toISOString()
+      };
+
+      if (targetId !== 'none') {
+        txData.targetId = targetId;
+      }
 
       if (isRecurring) {
         // For recurring transactions, we only create the template.
         // The background processor (recurrence.ts) will handle the first and subsequent executions.
         const recData = {
-          uid: user.uid,
-          name,
-          amount: finalAmount,
-          type,
-          category,
-          date,
-          emoji: emojiMap[type] || '💳',
-          isRecurring: true,
-          recurrence,
-          isTaxDeductible,
-          taxSection: isTaxDeductible ? taxSection : null,
-          isCapitalGain,
-          gainType: isCapitalGain ? gainType : null,
-          linkedAcc: fundSource,
-          createdAt: new Date().toISOString(),
+          ...txData,
           lastProcessed: null // Important: background worker will see this and process it
         };
         
         const recDocRef = await addDoc(collection(db, 'transactions'), recData);
         
         // Trigger immediate processing for the new template
-        await processRecurringTransactions(user.uid, [{ id: recDocRef.id, ...recData }], accounts, wallet);
+        await processRecurringTransactions(user.uid, [{ id: recDocRef.id, ...recData } as any], accounts, wallet, holdings);
       } else {
         // Normal one-time transaction
-        await addDoc(collection(db, 'transactions'), {
-          uid: user.uid,
-          name,
-          amount: finalAmount,
-          type,
-          category,
-          date,
-          emoji: emojiMap[type] || '💳',
-          isRecurring: false,
-          recurrence: 'none',
-          isTaxDeductible,
-          taxSection: isTaxDeductible ? taxSection : null,
-          isCapitalGain,
-          gainType: isCapitalGain ? gainType : null,
-          linkedAcc: fundSource,
-          createdAt: new Date().toISOString()
-        });
+        await addDoc(collection(db, 'transactions'), txData);
 
         // Update Source Balance (Only for one-time transactions)
         if (fundSource === 'wallet' && wallet) {
@@ -175,10 +194,10 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
             free: increment(finalAmount)
           };
 
-          if (type === 'expense') {
+          if (type === 'expense' || type === 'debt') {
             const envEntry = Object.entries(wallet.envelopes).find(([_, env]) => 
-              env.cat.toLowerCase() === category.toLowerCase() || 
-              env.name.toLowerCase() === category.toLowerCase()
+              env.cat.toLowerCase() === subCategory.toLowerCase() || 
+              env.name.toLowerCase() === subCategory.toLowerCase()
             );
             
             if (envEntry) {
@@ -198,14 +217,46 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
           }
         }
 
+        // --- NEW: Target Balance Update ---
+        if (targetId !== 'none') {
+          if (type === 'debt') {
+            // EMI Payment: Reduces Loan Balance (debt amount is negative, so we subtract absolute or add original)
+            // But Loan balance in DB is usually positive. If loan is 40L, EMI 35k should make it 39.65L.
+            // finalAmount is -35000. 
+            const accountRef = doc(db, 'accounts', targetId);
+            await updateDoc(accountRef, {
+              amt: increment(finalAmount) // Reduces loan principal (e.g. 4200000 + -35200)
+            });
+          } else if (type === 'investment' || type === 'savings') {
+            // Investment/Savings: Increases target balance
+            // finalAmount is -10000 (money leaving wallet). We want target to increase by 10000.
+            const targetAcc = accounts.find(a => a.id === targetId);
+            const targetHolding = holdings.find(h => h.id === targetId);
+            
+            if (targetAcc) {
+              await updateDoc(doc(db, 'accounts', targetId), {
+                amt: increment(Math.abs(finalAmount))
+              });
+            } else if (targetHolding) {
+              await updateDoc(doc(db, 'holdings', targetId), {
+                invested: increment(Math.abs(finalAmount)),
+                current: increment(Math.abs(finalAmount))
+              });
+            }
+          } else if (type === 'income' && (subCategory === 'Dividends' || subCategory === 'Deposit Interests')) {
+            // Income from an asset often doesn't increase the asset principal unless reinvested
+            // But user said "how much it returns". We can track it via transactions linked to targetId.
+          }
+        }
+
         // Evaluate Fines (Only for one-time expenses)
         if (type === 'expense') {
-          const activeFines = fines?.filter(f => f.active && f.category.toLowerCase() === category.toLowerCase()) || [];
+          const activeFines = fines?.filter(f => f.active && f.category.toLowerCase() === subCategory.toLowerCase()) || [];
           for (const fine of activeFines) {
             // Check if this transaction pushes them over the limit
             const currentMonth = date.slice(0, 7);
-            const currentMonthTx = transactions.filter(t => !t.isRecurring && t.type === 'expense' && t.category.toLowerCase() === category.toLowerCase() && t.date.startsWith(currentMonth));
-            const prevTotal = currentMonthTx.reduce((acc, t) => acc + Math.abs(t.amount), 0);
+            const currentMonthTx = transactions.filter(t => !t.isRecurring && t.type === 'expense' && t.subCategory.toLowerCase() === subCategory.toLowerCase() && t.date.startsWith(currentMonth));
+            const prevTotal = currentMonthTx.reduce((acc, t) => acc + Math.abs(t.amount || 0), 0);
             const newTotal = prevTotal + Math.abs(finalAmount);
 
             // Apply fine if they just crossed the limit, OR if they are already over the limit (applies fine per transaction over limit)
@@ -218,6 +269,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
                   amount: -fine.fineAmount, // It's treated as a savings outflow from wallet
                   type: 'savings',
                   category: 'Savings',
+                  subCategory: 'Behavioral Fine',
                   date,
                   emoji: '💸',
                   isRecurring: false,
@@ -260,7 +312,9 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
     setName('');
     setAmount('');
     setType('expense');
-    setCategory('Food & Dining');
+    setCategory('Expenses');
+    setSubCategory('Groceries');
+    setTargetId('none');
     setDate(new Date().toISOString().split('T')[0]);
     setIsTaxDeductible(false);
     setTaxSection('80C');
@@ -386,14 +440,20 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
         title="Add Transaction"
       >
         <form onSubmit={handleAddTransaction} className="space-y-4">
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            {(['expense', 'income', 'investment', 'savings'] as const).map((t) => (
+          <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar">
+            {(['expense', 'income', 'investment', 'savings', 'debt'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
-                onClick={() => setType(t)}
+                onClick={() => {
+                  setType(t);
+                  const newCat = t === 'expense' ? 'Expenses' : t === 'income' ? 'Income' : t === 'investment' ? 'Investment' : t === 'savings' ? 'Savings' : 'Debt';
+                  setCategory(newCat as CategoryName);
+                  setSubCategory(newCat === 'Expenses' ? expenseSubCategories[0] : FINANCIAL_CATEGORIES[newCat as CategoryName][0]);
+                  setTargetId('none');
+                }}
                 className={cn(
-                  "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
+                  "flex-1 py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap",
                   type === t ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500"
                 )}
               >
@@ -447,7 +507,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Source / Destination</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Source (Deducted From)</label>
             <select 
               value={fundSource}
               onChange={(e) => setFundSource(e.target.value)}
@@ -463,29 +523,104 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
             </select>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</label>
-            <select 
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
-            >
-              <option>Food & Dining</option>
-              <option>Groceries</option>
-              <option>Transport</option>
-              <option>Shopping</option>
-              <option>Entertainment</option>
-              <option>EMI/Loan</option>
-              <option>Investment</option>
-              <option>Income</option>
-              <option>Housing</option>
-              <option>Healthcare</option>
-              <option>Bills & Utilities</option>
-              <option>Education</option>
-              <option>Savings</option>
-              <option>Other</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</label>
+              <select 
+                value={category}
+                onChange={(e) => {
+                  const newCat = e.target.value as CategoryName;
+                  setCategory(newCat);
+                  setSubCategory(newCat === 'Expenses' ? expenseSubCategories[0] : FINANCIAL_CATEGORIES[newCat][0]);
+                  // Sync type
+                  const typeMap: Record<string, TransactionType> = {
+                    Expenses: 'expense',
+                    Income: 'income',
+                    Investment: 'investment',
+                    Savings: 'savings',
+                    Debt: 'debt'
+                  };
+                  setType(typeMap[newCat]);
+                }}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+              >
+                {Object.keys(FINANCIAL_CATEGORIES).map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Sub-Category</label>
+              <select 
+                value={subCategory}
+                onChange={(e) => setSubCategory(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+              >
+                {(category === 'Expenses' ? expenseSubCategories : FINANCIAL_CATEGORIES[category]).map(sub => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {(type === 'investment' || type === 'debt' || type === 'savings') && (
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+              <div className="flex justify-between items-center ml-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-indigo-600">
+                  Target Asset/Liability (To be {type === 'debt' ? 'Reduced' : 'Increased'})
+                </label>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsAddModalOpen(false);
+                    window.dispatchEvent(new CustomEvent('setActiveTab', { detail: 'savings' }));
+                    // Small delay to let tab switch before opening modal
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('openAddAccountModal', { detail: { type: type === 'debt' ? 'loan' : type === 'investment' ? 'fd' : 'savings' } }));
+                    }, 50);
+                  }}
+                  className="text-[9px] font-black text-indigo-600 underline uppercase tracking-tight"
+                >
+                  + Setup New {type === 'debt' ? 'Loan' : 'Account'}
+                </button>
+              </div>
+              <select 
+                value={targetId}
+                onChange={(e) => setTargetId(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold text-indigo-900"
+              >
+                <option value="none">No Linking (Just Entry)</option>
+                {type === 'debt' && (
+                  <optgroup label="Loans">
+                    {accounts.filter(a => a.type === 'loan').map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name} (Balance: ₹{acc.amt.toLocaleString('en-IN')})</option>
+                    ))}
+                  </optgroup>
+                )}
+                {type === 'investment' && (
+                  <>
+                    <optgroup label="Portfolios (Holdings)">
+                      {holdings.map(h => (
+                        <option key={h.id} value={h.id}>{h.name} (Value: ₹{h.current.toLocaleString('en-IN')})</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Investment Accounts">
+                      {accounts.filter(a => ['fd', 'rd', 'ppf', 'nps', 'epf'].includes(a.type)).map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name} (Balance: ₹{acc.amt.toLocaleString('en-IN')})</option>
+                      ))}
+                    </optgroup>
+                  </>
+                )}
+                {type === 'savings' && (
+                  <optgroup label="Savings Accounts">
+                    {accounts.filter(a => a.type === 'savings').map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name} (Balance: ₹{acc.amt.toLocaleString('en-IN')})</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          )}
 
           <div className="bg-indigo-50/30 p-4 rounded-2xl space-y-3">
             <div className="flex items-center justify-between">
@@ -754,9 +889,14 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
                       Tax
                     </span>
                   )}
+                  {tx.targetId && (
+                    <span className="px-1 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[6px] md:text-[8px] font-black uppercase">
+                      Linked
+                    </span>
+                  )}
                 </div>
                 <p className="text-[9px] text-slate-400 font-medium">
-                  {tx.category} · {new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                  {tx.category} / {tx.subCategory} · {new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                 </p>
               </div>
               <div className={cn(

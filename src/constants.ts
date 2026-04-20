@@ -1,18 +1,28 @@
 import { Transaction, Holding, Account } from './types';
 
+export const FINANCIAL_CATEGORIES = {
+  Income: ['Salary', 'Rent In', 'Dividends', 'Deposit Interests', 'Other'],
+  Expenses: ['Rent Out', 'Groceries', 'Entertainment', 'Transport', 'Healthcare', 'Bills & Utilities', 'Shopping', 'Education', 'Other'],
+  Investment: ['FD', 'RD', 'Stocks', 'MF', 'Real Estate', 'NPS', 'EPFO', 'Other'],
+  Savings: ['Cash', 'Savings Accounts', 'Emergency Fund'],
+  Debt: ['House EMI', 'Car Loan', 'Personal Loan', 'Other']
+} as const;
+
+export type CategoryName = keyof typeof FINANCIAL_CATEGORIES;
+
 export const INITIAL_TRANSACTIONS: Transaction[] = [
-  { id: '1', type: 'income', category: 'Income', emoji: '💼', name: 'Salary — TCS', date: '2026-03-01', amount: 115000, linkedAcc: '1' },
-  { id: '2', type: 'investment', category: 'Investment', emoji: '📈', name: 'HDFC Nifty 50 SIP', date: '2026-03-05', amount: -10000, linkedAcc: '1' },
-  { id: '3', type: 'expense', category: 'Groceries', emoji: '🛒', name: 'BigBasket', date: '2026-03-13', amount: -2340, linkedAcc: '1' },
-  { id: '4', type: 'income', category: 'Income', emoji: '💰', name: 'Rental Income', date: '2026-03-02', amount: 18000, note: 'Flat rent', linkedAcc: '1' },
-  { id: '5', type: 'expense', category: 'Transport', emoji: '🚗', name: 'Ola Cab', date: '2026-03-10', amount: -420, linkedAcc: '1' },
-  { id: '6', type: 'expense', category: 'Food & Dining', emoji: '🍕', name: 'Zomato Order', date: '2026-03-11', amount: -1200, note: 'Dinner', linkedAcc: '1' },
-  { id: '7', type: 'expense', category: 'Shopping', emoji: '🛍️', name: 'Amazon', date: '2026-03-08', amount: -3200, note: 'Clothes', linkedAcc: '1' },
-  { id: '8', type: 'expense', category: 'Entertainment', emoji: '🎬', name: 'Netflix + Hotstar', date: '2026-03-01', amount: -900, linkedAcc: '1' },
-  { id: '9', type: 'investment', category: 'Investment', emoji: '📊', name: 'Parag Parikh SIP', date: '2026-03-05', amount: -5000, linkedAcc: '1' },
-  { id: '10', type: 'expense', category: 'Housing', emoji: '🏠', name: 'Home Loan EMI', date: '2026-03-17', amount: -35200, linkedAcc: '5' },
-  { id: '11', type: 'savings', category: 'Savings', emoji: '🏦', name: 'Emergency Fund Deposit', date: '2026-03-10', amount: -10000, linkedAcc: '1' },
-  { id: '12', type: 'expense', category: 'Healthcare', emoji: '💊', name: 'Pharmacy', date: '2026-03-12', amount: -650, linkedAcc: '1' },
+  { id: '1', type: 'income', category: 'Income', subCategory: 'Salary', emoji: '💼', name: 'Salary — TCS', date: '2026-03-01', amount: 115000, linkedAcc: '1' },
+  { id: '2', type: 'investment', category: 'Investment', subCategory: 'MF', emoji: '📈', name: 'HDFC Nifty 50 SIP', date: '2026-03-05', amount: -10000, linkedAcc: '1' },
+  { id: '3', type: 'expense', category: 'Expenses', subCategory: 'Groceries', emoji: '🛒', name: 'BigBasket', date: '2026-03-13', amount: -2340, linkedAcc: '1' },
+  { id: '4', type: 'income', category: 'Income', subCategory: 'Rent In', emoji: '💰', name: 'Rental Income', date: '2026-03-02', amount: 18000, note: 'Flat rent', linkedAcc: '1' },
+  { id: '5', type: 'expense', category: 'Expenses', subCategory: 'Transport', emoji: '🚗', name: 'Ola Cab', date: '2026-03-10', amount: -420, linkedAcc: '1' },
+  { id: '6', type: 'expense', category: 'Expenses', subCategory: 'Other', emoji: '🍕', name: 'Zomato Order', date: '2026-03-11', amount: -1200, note: 'Dinner', linkedAcc: '1' },
+  { id: '7', type: 'expense', category: 'Expenses', subCategory: 'Shopping', emoji: '🛍️', name: 'Amazon', date: '2026-03-08', amount: -3200, note: 'Clothes', linkedAcc: '1' },
+  { id: '8', type: 'expense', category: 'Expenses', subCategory: 'Entertainment', emoji: '🎬', name: 'Netflix + Hotstar', date: '2026-03-01', amount: -900, linkedAcc: '1' },
+  { id: '9', type: 'investment', category: 'Investment', subCategory: 'MF', emoji: '📊', name: 'Parag Parikh SIP', date: '2026-03-05', amount: -5000, linkedAcc: '1' },
+  { id: '10', type: 'expense', category: 'Debt', subCategory: 'House EMI', emoji: '🏠', name: 'Home Loan EMI', date: '2026-03-17', amount: -35200, linkedAcc: '5', targetId: '5' },
+  { id: '11', type: 'savings', category: 'Savings', subCategory: 'Emergency Fund', emoji: '🏦', name: 'Emergency Fund Deposit', date: '2026-03-10', amount: -10000, linkedAcc: '1' },
+  { id: '12', type: 'expense', category: 'Expenses', subCategory: 'Healthcare', emoji: '💊', name: 'Pharmacy', date: '2026-03-12', amount: -650, linkedAcc: '1' },
 ];
 
 export const INITIAL_HOLDINGS: Holding[] = [

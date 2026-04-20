@@ -15,20 +15,29 @@ export default function Analytics({ transactions, holdings }: AnalyticsProps) {
   const currentMonthTransactions = transactions.filter(t => !t.isRecurring && t.date.startsWith(currentMonth));
 
   const totalSpent = currentMonthTransactions
-    .filter(t => t.type === 'expense' || t.type === 'investment')
-    .reduce((acc, t) => acc + Math.abs(t.amount), 0);
+    .filter(t => t.type === 'expense' || t.type === 'investment' || t.type === 'debt')
+    .reduce((acc, t) => acc + Math.abs(t.amount || 0), 0);
   const totalIncome = currentMonthTransactions
     .filter(t => t.type === 'income')
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => acc + (t.amount || 0), 0);
 
-  // Group transactions by category for Pie Chart
+  // Group transactions by category and subCategory for Pie Chart
   const categoryMap: Record<string, number> = {};
+  const subCategoryMap: Record<string, number> = {};
+  
   transactions
-    .filter(t => !t.isRecurring && (t.type === 'expense' || t.type === 'investment'))
+    .filter(t => !t.isRecurring && (t.type === 'expense' || t.type === 'investment' || t.type === 'debt'))
     .forEach(t => {
-      categoryMap[t.category] = (categoryMap[t.category] || 0) + Math.abs(t.amount);
+      const catKey = t.category || 'Other';
+      const subKey = t.subCategory || 'Other';
+      categoryMap[catKey] = (categoryMap[catKey] || 0) + Math.abs(t.amount || 0);
+      if (t.type === 'expense') {
+        subCategoryMap[subKey] = (subCategoryMap[subKey] || 0) + Math.abs(t.amount || 0);
+      }
     });
+  
   const categoryData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
+  const subCategoryData = Object.entries(subCategoryMap).map(([name, value]) => ({ name, value }));
 
   // Group transactions by month for Bar Chart (last 6 months)
   const last6Months = Array.from({ length: 6 }, (_, i) => {
@@ -42,8 +51,8 @@ export default function Analytics({ transactions, holdings }: AnalyticsProps) {
       !t.isRecurring && 
       new Date(t.date).toLocaleString('default', { month: 'short' }) === month
     );
-    const income = monthTxs.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = Math.abs(monthTxs.filter(t => t.type === 'expense' || t.type === 'investment').reduce((acc, t) => acc + t.amount, 0));
+    const income = monthTxs.filter(t => t.type === 'income').reduce((acc, t) => acc + (t.amount || 0), 0);
+    const expense = Math.abs(monthTxs.filter(t => t.type === 'expense' || t.type === 'investment' || t.type === 'debt').reduce((acc, t) => acc + (t.amount || 0), 0));
     return { name: month, income, expense, savings: Math.max(0, income - expense) };
   });
 

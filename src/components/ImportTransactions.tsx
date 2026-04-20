@@ -52,9 +52,10 @@ export default function ImportTransactions({ isOpen, onClose, onSuccess }: Impor
       const merged = rawTransactions.map((raw, i) => ({
         ...raw,
         name: categorized[i]?.name || raw.description,
-        category: categorized[i]?.category || 'Other',
+        category: categorized[i]?.category || 'Expenses',
+        subCategory: categorized[i]?.subCategory || 'Other',
         emoji: categorized[i]?.emoji || '💳',
-        type: raw.amount > 0 ? 'income' : 'expense'
+        type: categorized[i]?.category ? (categorized[i].category.toLowerCase() === 'income' ? 'income' : categorized[i].category.toLowerCase() === 'investment' ? 'investment' : categorized[i].category.toLowerCase() === 'savings' ? 'savings' : categorized[i].category.toLowerCase() === 'debt' ? 'debt' : 'expense') : (raw.amount > 0 ? 'income' : 'expense')
       }));
 
       setPreviewData(merged);
@@ -81,6 +82,7 @@ export default function ImportTransactions({ isOpen, onClose, onSuccess }: Impor
           amount: amt,
           type: tx.type,
           category: tx.category,
+          subCategory: tx.subCategory,
           date: tx.date,
           emoji: tx.emoji,
           isRecurring: false,
@@ -104,10 +106,10 @@ export default function ImportTransactions({ isOpen, onClose, onSuccess }: Impor
           const amt = tx.type === 'income' ? Math.abs(tx.amount) : -Math.abs(tx.amount);
           totalChange += amt;
 
-          if (tx.type === 'expense' && walletData.envelopes) {
+          if ((tx.type === 'expense' || tx.type === 'debt') && walletData.envelopes) {
             const envEntry = Object.entries(walletData.envelopes).find(([_, env]: [string, any]) => 
-              env.cat.toLowerCase() === tx.category.toLowerCase() || 
-              env.name.toLowerCase() === tx.category.toLowerCase()
+              env.cat.toLowerCase() === tx.subCategory.toLowerCase() || 
+              env.name.toLowerCase() === tx.subCategory.toLowerCase()
             );
             if (envEntry) {
               const [envKey, envData] = envEntry;
@@ -185,7 +187,7 @@ export default function ImportTransactions({ isOpen, onClose, onSuccess }: Impor
                   </div>
                   <div>
                     <p className="font-bold text-sm text-slate-900">{tx.name}</p>
-                    <p className="text-[10px] text-slate-500">{tx.category} • {tx.date}</p>
+                    <p className="text-[10px] text-slate-500">{tx.category} / {tx.subCategory} • {tx.date}</p>
                   </div>
                 </div>
                 <div className={cn("font-bold text-sm", tx.amount > 0 ? "text-emerald-600" : "text-slate-900")}>

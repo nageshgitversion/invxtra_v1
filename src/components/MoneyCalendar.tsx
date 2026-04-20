@@ -56,29 +56,6 @@ export default function MoneyCalendar({ transactions, wallet }: MoneyCalendarPro
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="glass-card p-5 rounded-2xl flex items-center justify-between border-l-4 border-emerald-500">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Safe to Spend</p>
-            <p className="font-display font-extrabold text-2xl text-emerald-600">{formatCurrency(Math.max(0, safeToSpend))}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Daily Pace</p>
-            <p className="font-display font-bold text-lg text-slate-700">{formatCurrency(safePerDay)}/day</p>
-          </div>
-        </div>
-        
-        <div className="glass-card p-5 rounded-2xl flex items-center justify-between border-l-4 border-amber-500">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Upcoming Bills</p>
-            <p className="font-display font-extrabold text-2xl text-amber-600">{formatCurrency(projections.upcomingBillsTotal)}</p>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
-            <AlertCircle size={20} />
-          </div>
-        </div>
-      </div>
-
       <div className="glass-card p-6 rounded-2xl">
         <div className="flex items-center gap-2 mb-6">
           <CalendarIcon size={18} className="text-indigo-600" />

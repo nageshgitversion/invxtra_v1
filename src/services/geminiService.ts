@@ -89,11 +89,13 @@ export async function getFinancialInsights(userData: any, forceRefresh = false) 
       return insights;
     }
 
-    if (error?.message?.includes('429') || error?.status === 'RESOURCE_EXHAUSTED') {
+    const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
+    
+    if (error?.message?.includes('429') || error?.status === 'RESOURCE_EXHAUSTED' || errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED')) {
       return [
-        "We're receiving a lot of requests right now. Please try again in a few minutes.",
-        "In the meantime, review your monthly budget for any missed savings.",
-        "Check your recurring transactions to ensure they are all necessary."
+        "Your AI insights rely on advanced models, and we've reached our API quota for the moment.",
+        "To restore functionality, please manage your API usage limits in your AI Studio project.",
+        "In the meantime, continue tracking your expenses and maintaining your monthly budget manually."
       ];
     }
 
@@ -133,25 +135,37 @@ export async function chatWithInvxtra(
     // but for simplicity we'll just send the message.
     const response = await chat.sendMessage({ message });
     return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Chat error:", error);
+    const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
+    if (error?.message?.includes('429') || errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED')) {
+      return "I'm sorry, but we've temporarily reached our API quota for AI features. Please try again later or check your project spend cap in AI Studio.";
+    }
     return "I'm having trouble connecting right now. How else can I help you with your finances?";
   }
 }
 
 export async function autoCategorizeTransactions(rawTransactions: { date: string, description: string, amount: number }[]) {
-  if (!apiKey) return rawTransactions.map(t => ({ ...t, category: 'Others', name: t.description, emoji: '🏷️' }));
+  if (!apiKey) return rawTransactions.map(t => ({ ...t, category: 'Others', subCategory: 'Other', name: t.description, emoji: '🏷️' }));
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `You are an AI that categorizes raw bank transactions.
-      Given the following list of raw transactions, clean up the 'description' to a user-friendly 'name', choose an appropriate 'category' (e.g., Dining, Groceries, Shopping, Travel, Bills, Entertainment, Salary, Others), and provide a fitting 'emoji'.
-      If amount is negative, it's an expense. If positive, it's income.
+      contents: `You are an AI that categorizes raw bank transactions according to a specific nested hierarchy.
+      
+      Hierarchy (Category: Sub-Categories):
+      - Income: Salary, Rent In, Dividends, Deposit Interests, Other
+      - Expenses: Rent Out, Groceries, Entertainment, Transport, Healthcare, Bills & Utilities, Shopping, Education, Other
+      - Investment: FD, RD, Stocks, MF, Real Estate, NPS, EPFO, Other
+      - Savings: Cash, Savings Accounts, Emergency Fund
+      - Debt: House EMI, Car Loan, Personal Loan, Other
+
+      Given the following list of raw transactions, clean up the 'description' to a user-friendly 'name', choose an appropriate 'category' and 'subCategory' from the hierarchy above, and provide a fitting 'emoji'.
+      If amount is negative, it's an expense or debt payment. If positive, it's income.
       
       Raw Data: ${JSON.stringify(rawTransactions)}
       
-      Return a JSON array of objects with keys: name, category, emoji. Maintain the exact same order.`,
+      Return a JSON array of objects with keys: name, category, subCategory, emoji. Maintain the order.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -161,6 +175,7 @@ export async function autoCategorizeTransactions(rawTransactions: { date: string
             properties: {
               name: { type: Type.STRING },
               category: { type: Type.STRING },
+              subCategory: { type: Type.STRING },
               emoji: { type: Type.STRING }
             }
           }
@@ -172,7 +187,7 @@ export async function autoCategorizeTransactions(rawTransactions: { date: string
     return JSON.parse(cleanJson(text));
   } catch (error) {
     console.error("Auto-categorize error:", error);
-    return rawTransactions.map(t => ({ ...t, category: 'Others', name: t.description, emoji: '🏷️' }));
+    return rawTransactions.map(t => ({ ...t, category: 'Expenses', subCategory: 'Other', name: t.description, emoji: '🏷️' }));
   }
 }
 
@@ -205,13 +220,17 @@ export async function scanReceipt(imageBase64: string, mimeType: string) {
           role: 'user',
           parts: [
             { inlineData: { data: imageBase64, mimeType } },
-            { text: `Extract the following details from this receipt or payment screenshot:
+            { text: `Extract the following details from this receipt or payment screenshot using the defined hierarchy:
+            Categories: Income, Expenses, Investment, Savings, Debt.
+            
+            Return:
             - "name": The vendor or person paid.
             - "amount": The total amount paid (number only, positive).
-            - "category": The most appropriate category (e.g., Dining, Groceries, Shopping, Travel, Bills, Entertainment, Others).
-            - "date": The date of the transaction (if visible, in YYYY-MM-DD format, else current date).
+            - "category": The high-level category (e.g., Expenses, Debt).
+            - "subCategory": The specific sub-category (e.g., Groceries, House EMI).
+            - "date": The date (YYYY-MM-DD format).
 
-            Return ONLY a valid JSON object with these keys.` }
+            Return ONLY a valid JSON object.` }
           ]
         }
       ]

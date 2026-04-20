@@ -1,4 +1,4 @@
-export type TransactionType = 'income' | 'expense' | 'investment' | 'savings';
+export type TransactionType = 'income' | 'expense' | 'investment' | 'savings' | 'debt';
 export type RecurrenceFrequency = 'none' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'half-yearly' | 'yearly';
 export type PayoutFrequency = 'monthly' | 'quarterly' | 'half-yearly' | 'yearly' | 'at-maturity';
 
@@ -6,12 +6,14 @@ export interface Transaction {
   id: string;
   type: TransactionType;
   category: string;
+  subCategory: string;
   emoji: string;
   name: string;
   date: string;
   amount: number;
   note?: string;
   linkedAcc?: string;
+  targetId?: string; // ID of Account or Holding impacted (e.g., Loan id for EMI)
   isRecurring?: boolean;
   recurrence?: RecurrenceFrequency;
   lastProcessed?: string; // ISO date string
@@ -117,10 +119,12 @@ export interface FamilyGoal {
   householdId?: string; // Optional for backward compatibility
   ownerUid?: string; // new field for item-level sharing
   allowedUids?: string[]; // array of UIDs allowed to see and contribute
+  isShared: boolean; // distinguish between personal and family goals
   name: string;
   target: number;
   saved: number;
-  eta: string;
+  startDate: string; // ISO date string
+  eta: string; // Target date (ISO string)
   contributions: Record<string, number>; // memberId -> amount
 }
 
@@ -135,6 +139,19 @@ export interface Split {
   payerUid: string; // Who paid the whole bill
   participants: Record<string, number>; // uid -> share amount
   status: 'pending' | 'settled';
+}
+
+export interface SmartNudge {
+  id: string;
+  type: 'alert' | 'opportunity' | 'insight' | 'milestone';
+  title: string;
+  description: string;
+  icon: string;
+  actionLabel?: string;
+  actionTab?: string;
+  actionPayload?: any;
+  priority: 'low' | 'medium' | 'high';
+  dismissible: boolean;
 }
 
 export interface SpendingFine {
@@ -152,6 +169,7 @@ export interface SharedEnvelope {
   uid: string; // householdId (legacy)
   ownerUid?: string; // new field for item-level sharing
   allowedUids?: string[]; // array of UIDs allowed to see and contribute
+  isShared: boolean; // distinguish between personal buckets and shared envelopes
   name: string;
   icon: string;
   budget: number;

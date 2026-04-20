@@ -14,7 +14,8 @@ import {
   Settings,
   Calculator,
   Zap,
-  Home
+  Home,
+  Landmark
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
@@ -34,9 +35,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
   const navItems = [
     { id: 'home', label: 'Home', icon: LayoutDashboard },
-    { id: 'transactions', label: 'Expenses', icon: ReceiptIndianRupee },
-    { id: 'savings', label: 'Savings', icon: PiggyBank },
-    { id: 'portfolio', label: 'Portfolio', icon: TrendingUp },
+    { id: 'vault', label: 'Vault', icon: Landmark },
     { id: 'household', label: 'Household', icon: Home },
     { id: 'split', label: 'Split', icon: Users },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -55,38 +54,40 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       </div>
 
       <div className="flex flex-col gap-1.5 overflow-y-auto no-scrollbar flex-1 -mx-2 px-2">
-        {navItems.map((item) => (
+        {navItems.map((item) => {
+          const isActive = activeTab === item.id || (item.id === 'vault' && ['savings', 'portfolio', 'savings_view', 'deposits_view', 'loans_view'].includes(activeTab));
+          return (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={cn(
               "flex items-center gap-3 px-5 py-3.5 rounded-2xl transition-all duration-300 font-display font-bold text-[13px] relative group",
-              activeTab === item.id 
+              isActive 
                 ? "bg-slate-900 text-white shadow-xl shadow-slate-200" 
                 : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
             )}
           >
             <item.icon size={18} className={cn(
               "transition-transform duration-300 group-hover:scale-110",
-              activeTab === item.id ? "text-indigo-400" : "text-slate-400 group-hover:text-slate-900"
+              isActive ? "text-indigo-400" : "text-slate-400 group-hover:text-slate-900"
             )} />
             {item.label}
             {item.badge && (
               <span className={cn(
                 "absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black",
-                activeTab === item.id ? "bg-indigo-500 text-white" : "bg-indigo-600 text-white"
+                isActive ? "bg-indigo-500 text-white" : "bg-indigo-600 text-white"
               )}>
                 {item.badge}
               </span>
             )}
-            {activeTab === item.id && (
+            {isActive && (
               <motion.div 
                 layoutId="activeTab"
                 className="absolute left-0 w-1 h-6 bg-indigo-500 rounded-r-full"
               />
             )}
           </button>
-        ))}
+        )})}
       </div>
 
       <div className="mt-8 pt-8 border-t border-slate-100">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PiggyBank, Plus, Calendar, ArrowRight, X, Edit, Trash2, Repeat } from 'lucide-react';
-import { Account, Wallet, WalletEnvelope, Transaction, RecurrenceFrequency, PayoutFrequency, FamilyGoal, FamilyMember } from '../types';
+import { Account, Wallet, WalletEnvelope, Transaction, RecurrenceFrequency, PayoutFrequency, FamilyGoal, FamilyMember, TransactionType } from '../types';
 import { formatCurrency, formatCompactNumber, cn, getMonthlyCommitment } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
 import { processRecurringTransactions } from '../lib/recurrence';
@@ -10,15 +10,17 @@ import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import { motion } from 'motion/react';
 import { Users, Target, Coins, Trash } from 'lucide-react';
+import { FINANCIAL_CATEGORIES, CategoryName } from '../constants';
 
 interface SavingsProps {
   accounts: Account[];
   transactions: Transaction[];
+  viewGroup?: 'savings' | 'deposits' | 'loans';
 }
 
-export default function Savings({ accounts, transactions }: SavingsProps) {
-  const { user, wallet, familyGoals } = useFirebase();
-  const [activeTab, setActiveTab] = useState<'wallet' | 'accounts' | 'recurring'>('wallet');
+export default function Savings({ accounts, transactions, viewGroup }: SavingsProps) {
+  const { user, holdings, wallet, familyGoals } = useFirebase();
+  const [activeTab, setActiveTab] = useState<'wallet' | 'accounts' | 'recurring'>(viewGroup ? 'accounts' : 'wallet');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
 
@@ -43,6 +45,23 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // External event listener to open modal
+  React.useEffect(() => {
+    const handleOpenModal = (e: any) => {
+      resetForm();
+      setActiveTab('accounts');
+      if (e.detail?.type) {
+        const t = e.detail.type;
+        setType(t);
+        setCategory(t === 'loan' ? 'loan' : ['ppf', 'nps', 'epf'].includes(t) ? 'investment' : 'savings');
+      }
+      setIsAddModalOpen(true);
+    };
+
+    window.addEventListener('openAddAccountModal', handleOpenModal);
+    return () => window.removeEventListener('openAddAccountModal', handleOpenModal);
+  }, []);
+
   // Confirmation Modals
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'account' | 'recurring' | 'goal' | 'member', id: string } | null>(null);
 
@@ -50,8 +69,9 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
   const [isAddRecurringModalOpen, setIsAddRecurringModalOpen] = useState(false);
   const [recName, setRecName] = useState('');
   const [recAmount, setRecAmount] = useState('');
-  const [recType, setRecType] = useState<'expense' | 'income' | 'investment' | 'savings'>('expense');
-  const [recCategory, setRecCategory] = useState('Food & Dining');
+  const [recType, setRecType] = useState<TransactionType>('expense');
+  const [recCategory, setRecCategory] = useState<CategoryName>('Expenses');
+  const [recSubCategory, setRecSubCategory] = useState<string>(FINANCIAL_CATEGORIES['Expenses'][0]);
   const [recDate, setRecDate] = useState(new Date().toISOString().split('T')[0]);
   const [recFrequency, setRecFrequency] = useState<RecurrenceFrequency>('monthly');
   const [recLinkedAcc, setRecLinkedAcc] = useState('');
@@ -163,6 +183,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
             amount: -amount,
             type: 'expense',
             category: 'Savings',
+            subCategory: 'Savings Accounts',
             emoji: '🏦',
             date: new Date().toISOString().split('T')[0],
             linkedAcc: accountId,
@@ -182,6 +203,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
             amount: -amount,
             type: 'expense',
             category: 'Savings',
+            subCategory: 'Savings Accounts',
             emoji: '🔄',
             date: new Date().toISOString().split('T')[0],
             linkedAcc: sourceAcc.id,
@@ -196,6 +218,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
             amount: amount,
             type: 'income',
             category: 'Savings',
+            subCategory: 'Savings Accounts',
             emoji: '💵',
             date: new Date().toISOString().split('T')[0],
             createdAt: new Date().toISOString()
@@ -238,15 +261,19 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
                 type === 'rd' ? `RD Installment: ${name}` : 
                 `PF Contribution: ${name}`,
           amount: -Math.abs(amount),
-          type: 'expense',
-          category: type === 'loan' ? 'EMI/Loan' : 
+          type: type === 'loan' ? 'debt' : type === 'rd' ? 'savings' : 'investment',
+          category: type === 'loan' ? 'Debt' : 
                     type === 'rd' ? 'Savings' : 'Investment',
+          subCategory: type === 'loan' ? 'House EMI' : // Defaulting to House EMI for now or specific subcat
+                       type === 'rd' ? 'Savings Accounts' : 
+                       type === 'ppf' ? 'NPS' : 'Other', // Simplified mapping
           date: nextDate.toISOString().split('T')[0],
           emoji: type === 'loan' ? '🏠' : 
                  type === 'rd' ? '🏦' : '🛡️',
           isRecurring: true,
           recurrence: 'monthly',
-          linkedAcc: accountId,
+          linkedAcc: fundSource === 'wallet' ? 'wallet' : fundSource,
+          targetId: accountId,
           lastProcessed: lastProcessedDate, 
           isTaxDeductible: ['ppf', 'nps', 'epf'].includes(type),
           taxSection: type === 'ppf' ? '80C' : type === 'nps' ? '80CCD' : type === 'epf' ? '80C' : null,
@@ -257,12 +284,12 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
           await updateDoc(doc(db, 'transactions', existingRec.id), recData);
           // Trigger immediate processing
           const updatedRec = { ...existingRec, ...recData };
-          await processRecurringTransactions(user.uid, transactions.map(t => t.id === existingRec.id ? updatedRec : t), accounts, wallet);
+          await processRecurringTransactions(user.uid, [updatedRec], accounts, wallet, holdings);
         } else {
           const recDocRef = await addDoc(collection(db, 'transactions'), recData);
           // Trigger immediate processing
           const newRec = { id: recDocRef.id, ...recData };
-          await processRecurringTransactions(user.uid, [...transactions, newRec], accounts, wallet);
+          await processRecurringTransactions(user.uid, [newRec], accounts, wallet, holdings);
         }
       } else if (editingAccount) {
         // If it's no longer a recurring account (EMI removed), delete the template
@@ -385,11 +412,13 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
         amount: finalAmount,
         type: recType,
         category: recCategory,
+        subCategory: recSubCategory,
         date: recDate,
         emoji: emojiMap[recType] || '💳',
         isRecurring: true,
         recurrence: recFrequency,
-        linkedAcc: recLinkedAcc || null,
+        linkedAcc: recLinkedAcc || 'wallet',
+        targetId: null as string | null,
         createdAt: new Date().toISOString(),
         lastProcessed: null
       };
@@ -399,7 +428,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
       const newRec = { id: recDocRef.id, ...recData };
       
       // Trigger immediate processing for the new template only
-      await processRecurringTransactions(user.uid, [newRec], accounts, wallet);
+      await processRecurringTransactions(user.uid, [newRec as any], accounts, wallet, holdings);
 
       // Update Wallet Committed Amount
       if (wallet && wallet.active && recType !== 'income') {
@@ -467,7 +496,8 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
     setRecName('');
     setRecAmount('');
     setRecType('expense');
-    setRecCategory('Food & Dining');
+    setRecCategory('Expenses');
+    setRecSubCategory(FINANCIAL_CATEGORIES['Expenses'][0]);
     setRecDate(new Date().toISOString().split('T')[0]);
     setRecFrequency('monthly');
     setRecLinkedAcc('');
@@ -517,6 +547,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
       />
 
       {/* Tabs */}
+      {!viewGroup && (
       <div className="flex bg-white p-1.5 rounded-2xl border border-indigo-50 shadow-sm sticky top-0 z-10 overflow-x-auto no-scrollbar">
         <button 
           onClick={() => setActiveTab('wallet')}
@@ -546,6 +577,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
           🔄 Recurring
         </button>
       </div>
+      )}
 
       <Modal 
         isOpen={isAddModalOpen} 
@@ -558,6 +590,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
               ⚠️ {error}
             </div>
           )}
+          {!viewGroup && (
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</label>
             <div className="flex bg-slate-100 p-1 rounded-xl">
@@ -581,6 +614,7 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
               ))}
             </div>
           </div>
+          )}
 
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Account Type</label>
@@ -588,22 +622,30 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
               value={type}
               onChange={(e) => setType(e.target.value as any)}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+              disabled={viewGroup === 'savings' || viewGroup === 'loans'}
             >
-              {category === 'savings' && (
+              {(category === 'savings' && !viewGroup) && (
                 <>
                   <option value="savings">Savings Account</option>
                   <option value="fd">Fixed Deposit (FD)</option>
                   <option value="rd">Recurring Deposit (RD)</option>
                 </>
               )}
-              {category === 'investment' && (
+              {viewGroup === 'savings' && <option value="savings">Savings Account</option>}
+              {viewGroup === 'deposits' && (
+                <>
+                  <option value="fd">Fixed Deposit (FD)</option>
+                  <option value="rd">Recurring Deposit (RD)</option>
+                </>
+              )}
+              {(category === 'investment' && viewGroup !== 'deposits') && (
                 <>
                   <option value="ppf">Public Provident Fund (PPF)</option>
                   <option value="nps">National Pension System (NPS)</option>
                   <option value="epf">Employees' Provident Fund (EPF)</option>
                 </>
               )}
-              {category === 'loan' && (
+              {(category === 'loan' || viewGroup === 'loans') && (
                 <option value="loan">Loan / EMI</option>
               )}
             </select>
@@ -828,13 +870,18 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
       >
         <form onSubmit={handleAddRecurring} className="space-y-4">
           <div className="flex bg-slate-100 p-1 rounded-xl">
-            {(['expense', 'income', 'investment', 'savings'] as const).map((t) => (
+            {(['expense', 'income', 'investment', 'savings', 'debt'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
-                onClick={() => setRecType(t)}
+                onClick={() => {
+                  setRecType(t);
+                  const cat = t === 'expense' ? 'Expenses' : t === 'income' ? 'Income' : t === 'investment' ? 'Investment' : t === 'savings' ? 'Savings' : 'Debt' as CategoryName;
+                  setRecCategory(cat);
+                  setRecSubCategory(FINANCIAL_CATEGORIES[cat][0]);
+                }}
                 className={cn(
-                  "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
+                  "flex-1 py-2 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all",
                   recType === t ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500"
                 )}
               >
@@ -905,28 +952,44 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</label>
-            <select 
-              value={recCategory}
-              onChange={(e) => setRecCategory(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
-            >
-              <option>Food & Dining</option>
-              <option>Groceries</option>
-              <option>Transport</option>
-              <option>Shopping</option>
-              <option>Entertainment</option>
-              <option>EMI/Loan</option>
-              <option>Investment</option>
-              <option>Income</option>
-              <option>Housing</option>
-              <option>Healthcare</option>
-              <option>Bills & Utilities</option>
-              <option>Education</option>
-              <option>Savings</option>
-              <option>Other</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</label>
+              <select 
+                value={recCategory}
+                onChange={(e) => {
+                  const cat = e.target.value as CategoryName;
+                  setRecCategory(cat);
+                  setRecSubCategory(FINANCIAL_CATEGORIES[cat][0]);
+                  // Sync type
+                  const typeMap: Record<CategoryName, TransactionType> = {
+                    Expenses: 'expense',
+                    Income: 'income',
+                    Investment: 'investment',
+                    Savings: 'savings',
+                    Debt: 'debt'
+                  };
+                  setRecType(typeMap[cat]);
+                }}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+              >
+                {Object.keys(FINANCIAL_CATEGORIES).map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Sub-Category</label>
+              <select 
+                value={recSubCategory}
+                onChange={(e) => setRecSubCategory(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+              >
+                {FINANCIAL_CATEGORIES[recCategory].map(sub => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -1065,7 +1128,11 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
       ) : activeTab === 'accounts' ? (
         <div className="space-y-6">
           <div className="flex justify-between items-center px-2">
-            <h2 className="font-display font-extrabold text-xl">Virtual Accounts</h2>
+            <h2 className="font-display font-extrabold text-xl">
+              {viewGroup === 'savings' ? 'Savings & Salary' : 
+               viewGroup === 'deposits' ? 'Deposits (FD/RD)' : 
+               viewGroup === 'loans' ? 'Loans & Debt' : 'Virtual Accounts'}
+            </h2>
             <button 
               onClick={() => { setEditingAccount(null); resetForm(); setError(null); setIsAddModalOpen(true); }}
               className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-display font-bold shadow-md shadow-indigo-100 flex items-center gap-2"
@@ -1075,15 +1142,23 @@ export default function Savings({ accounts, transactions }: SavingsProps) {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <AccountStat label="Savings" value={formatCurrency(savingsTotal)} color="text-emerald-600" />
-            <AccountStat label="FD Corpus" value={formatCurrency(fdTotal)} color="text-amber-600" />
-            <AccountStat label="RD Corpus" value={formatCurrency(rdTotal)} color="text-purple-600" />
-            <AccountStat label="Tax Savings" value={formatCurrency(taxSavingTotal)} color="text-indigo-600" />
-            <AccountStat label="Outstanding" value={formatCurrency(loanTotal)} color="text-red-600" />
+            {(!viewGroup || viewGroup === 'savings') && <AccountStat label="Savings" value={formatCurrency(savingsTotal)} color="text-emerald-600" />}
+            {(!viewGroup || viewGroup === 'deposits') && <AccountStat label="FD Corpus" value={formatCurrency(fdTotal)} color="text-amber-600" />}
+            {(!viewGroup || viewGroup === 'deposits') && <AccountStat label="RD Corpus" value={formatCurrency(rdTotal)} color="text-purple-600" />}
+            {(!viewGroup) && <AccountStat label="Tax Savings" value={formatCurrency(taxSavingTotal)} color="text-indigo-600" />}
+            {(!viewGroup || viewGroup === 'loans') && <AccountStat label="Outstanding" value={formatCurrency(loanTotal)} color="text-red-600" />}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {accounts.map(acc => (
+            {accounts
+              .filter(acc => {
+                if (!viewGroup) return true;
+                if (viewGroup === 'savings') return acc.type === 'savings';
+                if (viewGroup === 'deposits') return acc.type === 'fd' || acc.type === 'rd';
+                if (viewGroup === 'loans') return acc.type === 'loan';
+                return true;
+              })
+              .map(acc => (
               <AccountCard 
                 key={acc.id} 
                 account={acc} 

@@ -21,11 +21,15 @@ export default function WalletModal({ isOpen, onClose, wallet }: WalletModalProp
   const [newEnvName, setNewEnvName] = useState('');
   const [newEnvIcon, setNewEnvIcon] = useState('📦');
   const [newEnvBudget, setNewEnvBudget] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+
+  const DEFAULT_ENVELOPES = ['food', 'groceries', 'transport', 'shopping', 'entertainment', 'others'];
 
   useEffect(() => {
     if (isOpen) {
       if (wallet) {
         setWalletBalance(wallet.balance.toString());
+        setSelectedMonth(wallet.lastSweepMonth || new Date().toISOString().slice(0, 7));
         const initialAllocations: Record<string, { budget: number, spent: number, name: string, icon: string }> = {};
         Object.entries(wallet.envelopes).forEach(([key, env]) => {
           initialAllocations[key] = { 
@@ -72,7 +76,18 @@ export default function WalletModal({ isOpen, onClose, wallet }: WalletModalProp
     }));
   };
 
+  const handleIconChange = (key: string, icon: string) => {
+    setAllocations(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        icon: icon
+      }
+    }));
+  };
+
   const handleDeleteEnvelope = (key: string) => {
+    if (DEFAULT_ENVELOPES.includes(key)) return;
     const newAllocations = { ...allocations };
     delete newAllocations[key];
     setAllocations(newAllocations);
@@ -108,6 +123,7 @@ export default function WalletModal({ isOpen, onClose, wallet }: WalletModalProp
         balance: newBalance,
         free: newFree,
         committed: newCommitted,
+        lastSweepMonth: selectedMonth,
         envelopes: {}
       };
 
@@ -149,9 +165,9 @@ export default function WalletModal({ isOpen, onClose, wallet }: WalletModalProp
     }
   };
 
-  const now = new Date();
-  const monthName = now.toLocaleString('default', { month: 'long' });
-  const year = now.getFullYear();
+  const selectedDate = new Date(selectedMonth + '-01');
+  const monthName = selectedDate.toLocaleString('default', { month: 'long' });
+  const year = selectedDate.getFullYear();
 
   return (
     <div className="space-y-6 max-h-[85vh] overflow-y-auto no-scrollbar pr-1 -mr-1">
@@ -179,9 +195,13 @@ export default function WalletModal({ isOpen, onClose, wallet }: WalletModalProp
           <Calendar size={14} className="text-slate-400" />
           For Month
         </label>
-        <div className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-          <span className="font-bold text-slate-700">{monthName} {year}</span>
-          <Calendar size={18} className="text-slate-400" />
+        <div className="relative">
+          <input 
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-slate-700"
+          />
         </div>
       </div>
 
@@ -257,18 +277,34 @@ export default function WalletModal({ isOpen, onClose, wallet }: WalletModalProp
         </p>
 
         <div className="grid grid-cols-2 gap-4 pt-2">
-          {Object.entries(allocations).map(([key, env]) => (
+          {Object.entries(allocations)
+            .sort(([a], [b]) => {
+              if (a === 'others') return 1;
+              if (b === 'others') return -1;
+              return 0;
+            })
+            .map(([key, env]) => (
             <div key={key} className="space-y-1.5 relative group">
-              <button 
-                onClick={() => handleDeleteEnvelope(key)}
-                className="absolute -top-1 -right-1 p-1 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 z-10"
-              >
-                <Trash2 size={10} />
-              </button>
-              <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
-                <span className="text-base grayscale-0">{env.icon}</span>
-                {env.name}
-              </label>
+              {!DEFAULT_ENVELOPES.includes(key) && (
+                <button 
+                  onClick={() => handleDeleteEnvelope(key)}
+                  className="absolute -top-1 -right-1 p-1 bg-white rounded-full shadow-sm border border-slate-100 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 z-10"
+                >
+                  <Trash2 size={10} />
+                </button>
+              )}
+              <div className="flex items-center gap-1.5 ml-1">
+                <input 
+                  type="text" 
+                  value={env.icon}
+                  onChange={(e) => handleIconChange(key, e.target.value)}
+                  className="w-6 h-6 p-0 bg-transparent border-none text-base focus:outline-none focus:ring-0 text-center"
+                  maxLength={2}
+                />
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  {env.name}
+                </label>
+              </div>
               <input 
                 type="number" 
                 value={env.budget || ''}
@@ -335,26 +371,33 @@ export default function WalletModal({ isOpen, onClose, wallet }: WalletModalProp
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3 pt-6 border-t border-slate-50">
-        <button 
-          onClick={onClose}
-          className="flex-1 py-4 rounded-2xl border border-slate-100 text-slate-500 font-display font-bold hover:bg-slate-50 transition-all text-sm"
-        >
-          Cancel
-        </button>
-        <button 
-          onClick={handleSave}
-          disabled={isSubmitting || newFree < 0}
-          className="flex-[2] bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 flex flex-col items-center justify-center gap-0.5 text-sm"
-        >
-          <div className="flex items-center gap-2">
-            <Save size={18} />
-            {isSubmitting ? "Activating..." : "Activate Wallet"}
+      <div className="flex flex-col gap-3 pt-6 border-t border-slate-50">
+        {envelopeTotal > newFree && (
+          <div className="bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl border border-red-100 flex items-center justify-center">
+            Alloting amount is more than wallet
           </div>
-          {newFree < 0 && (
-            <span className="text-[9px] font-black uppercase opacity-80">Insufficient Balance</span>
-          )}
-        </button>
+        )}
+        <div className="flex gap-3">
+          <button 
+            onClick={onClose}
+            className="flex-1 py-4 rounded-2xl border border-slate-100 text-slate-500 font-display font-bold hover:bg-slate-50 transition-all text-sm"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave}
+            disabled={isSubmitting || newFree < 0 || envelopeTotal > newFree}
+            className="flex-[2] bg-indigo-600 text-white font-display font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 flex flex-col items-center justify-center gap-0.5 text-sm"
+          >
+            <div className="flex items-center gap-2">
+              <Save size={18} />
+              {isSubmitting ? "Activating..." : "Activate Wallet"}
+            </div>
+            {newFree < 0 && (
+              <span className="text-[9px] font-black uppercase opacity-80">Insufficient Balance</span>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

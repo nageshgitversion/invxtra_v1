@@ -6,7 +6,8 @@ export async function processRecurringTransactions(
   uid: string,
   transactions: Transaction[],
   accounts: Account[],
-  wallet: Wallet | null
+  wallet: Wallet | null,
+  holdings: any[] = []
 ) {
   const now = new Date();
   
@@ -28,7 +29,7 @@ export async function processRecurringTransactions(
     // Process all occurrences up to today
     while (nextDate <= now) {
       try {
-        const finalAmount = template.amount;
+        const finalAmount = template.amount || 0;
         const dateStr = nextDate.toISOString().split('T')[0];
 
         // 1. Create the actual transaction record
@@ -38,6 +39,8 @@ export async function processRecurringTransactions(
           amount: finalAmount,
           type: template.type,
           category: template.category,
+          subCategory: template.subCategory || (template.type === 'expense' ? 'Housing' : template.type === 'income' ? 'Income' : 'Other'),
+          targetId: template.targetId || null,
           date: dateStr,
           emoji: template.emoji,
           isRecurring: false,
@@ -46,8 +49,9 @@ export async function processRecurringTransactions(
           createdAt: new Date().toISOString()
         });
 
-        // 2. Drawdown from Wallet
-        if (wallet) {
+        // 2. Drawdown from Wallet/Savings
+        const sourceAccId = template.linkedAcc || 'wallet';
+        if (sourceAccId === 'wallet' && wallet) {
           const walletRef = doc(db, 'wallets', uid);
           const walletUpdates: any = {
             balance: increment(finalAmount)
@@ -56,50 +60,44 @@ export async function processRecurringTransactions(
           if (template.type === 'income') {
             walletUpdates.free = increment(finalAmount);
           } else {
-            // For expenses/investments/savings, reduce the committed amount 
-            // since it's now actually spent/moved.
-            // This keeps the 'free' balance stable while reducing the 'committed' label.
-            walletUpdates.committed = increment(finalAmount); // finalAmount is negative for expenses
+            walletUpdates.committed = increment(finalAmount);
           }
           
           await updateDoc(walletRef, walletUpdates);
-        }
-
-        // 3. Update Linked Account (The "Drawdown" target)
-        if (template.linkedAcc) {
-          const account = accounts.find(a => a.id === template.linkedAcc);
+        } else if (sourceAccId !== 'external' && sourceAccId !== 'wallet') {
+          const account = accounts.find(a => a.id === sourceAccId);
           if (account) {
             const accountRef = doc(db, 'accounts', account.id);
-            let adjustment = Math.abs(finalAmount);
-            let interestAccrued = 0;
+            await updateDoc(accountRef, {
+              amt: increment(finalAmount)
+            });
+          }
+        }
 
-            if (account.type !== 'loan' && account.rate > 0) {
-              const frequencyMonths: Record<RecurrenceFrequency, number> = {
-                daily: 1/30,
-                weekly: 1/4,
-                monthly: 1,
-                quarterly: 3,
-                'half-yearly': 6,
-                yearly: 12,
-                none: 0
-              };
-              const months = frequencyMonths[template.recurrence] || 0;
-              interestAccrued = Math.round((account.amt * account.rate * months) / 1200);
+        // 3. Update Target Account/Holding (The "Impact" target)
+        if (template.targetId) {
+          const targetId = template.targetId;
+          const targetAcc = accounts.find(a => a.id === targetId);
+          const targetHolding = holdings.find(h => h.id === targetId);
+
+          if (template.type === 'debt' && targetAcc) {
+            // Debt reduction: EMI reduces Loan principal
+            await updateDoc(doc(db, 'accounts', targetId), {
+              amt: increment(finalAmount) // Reducing principal (e.g. 42L - 35k)
+            });
+          } else if (template.type === 'investment' || template.type === 'savings') {
+            // Investment/Savings: Increase target balance
+            const impactAmount = Math.abs(finalAmount);
+            if (targetAcc) {
+              await updateDoc(doc(db, 'accounts', targetId), {
+                amt: increment(impactAmount)
+              });
+            } else if (targetHolding) {
+              await updateDoc(doc(db, 'holdings', targetId), {
+                invested: increment(impactAmount),
+                current: increment(impactAmount)
+              });
             }
-
-            if (account.type === 'loan') {
-              adjustment = -Math.abs(finalAmount);
-            }
-            
-            const updates: any = {
-              amt: increment(adjustment + interestAccrued)
-            };
-
-            if (interestAccrued > 0) {
-              updates.interestEarned = increment(interestAccrued);
-            }
-
-            await updateDoc(accountRef, updates);
           }
         }
 

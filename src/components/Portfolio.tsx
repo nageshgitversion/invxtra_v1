@@ -10,9 +10,10 @@ import Modal from './Modal';
 
 interface PortfolioProps {
   holdings: Holding[];
+  setActiveTab?: (tab: string) => void;
 }
 
-export default function Portfolio({ holdings }: PortfolioProps) {
+export default function Portfolio({ holdings, setActiveTab }: PortfolioProps) {
   const { user } = useFirebase();
   const [filter, setFilter] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -232,12 +233,27 @@ export default function Portfolio({ holdings }: PortfolioProps) {
           </p>
           <h2 className="font-display font-extrabold text-2xl">Portfolio</h2>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          <button 
+            onClick={() => {
+              if (setActiveTab) {
+                setActiveTab('savings');
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('openAddAccountModal', { detail: { type: 'ppf' } }));
+                }, 300);
+              } else {
+                window.dispatchEvent(new CustomEvent('openAddAccountModal', { detail: { type: 'ppf' } }));
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-100 bg-white text-emerald-600 font-display font-bold text-xs shadow-sm transition-all hover:bg-emerald-50"
+          >
+            <Plus size={14} /> Add PF/NPS
+          </button>
           <button 
             onClick={handleSync}
             disabled={isSyncing || holdings.length === 0}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm transition-all",
+              "flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm transition-all hover:bg-indigo-50",
               isSyncing && "opacity-50 cursor-not-allowed"
             )}
           >
@@ -246,9 +262,9 @@ export default function Portfolio({ holdings }: PortfolioProps) {
           </button>
           <button 
             onClick={() => { setError(null); setIsAddModalOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-display font-bold text-xs shadow-md shadow-indigo-100"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-display font-bold text-xs shadow-md shadow-indigo-100 hover:bg-indigo-700"
           >
-            <Plus size={14} /> Add
+            <Plus size={14} /> Add Holding
           </button>
         </div>
       </div>

@@ -34,6 +34,7 @@ import { signInWithGoogle, logout } from './lib/firebase';
 // Components
 import Dashboard from './components/Dashboard';
 import Transactions from './components/Transactions';
+import Vault from './components/Vault';
 import Savings from './components/Savings';
 import Portfolio from './components/Portfolio';
 import Analytics from './components/Analytics';
@@ -160,7 +161,7 @@ export default function App() {
 
     const checkRecurring = async () => {
       setHasCheckedRecurring(true);
-      await processRecurringTransactions(user.uid, transactions, accounts, wallet);
+      await processRecurringTransactions(user.uid, transactions, accounts, wallet, holdings);
       if (wallet) {
         await checkAndSweepWallet(user.uid, wallet, accounts, transactions);
       }
@@ -210,10 +211,14 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'home': return <Dashboard transactions={transactions} holdings={holdings} accounts={accounts} insights={insights} wallet={wallet} onRefreshInsights={refreshInsights} />;
+      case 'home': return <Dashboard transactions={transactions} holdings={holdings} accounts={accounts} insights={insights} wallet={wallet} onRefreshInsights={refreshInsights} onTabChange={setActiveTab} />;
       case 'transactions': return <Transactions transactions={transactions} wallet={wallet} />;
+      case 'vault': return <Vault accounts={accounts} holdings={holdings} wallet={wallet} setActiveTab={setActiveTab} />;
+      case 'savings_view': return <Savings accounts={accounts} transactions={transactions} viewGroup="savings" />;
+      case 'deposits_view': return <Savings accounts={accounts} transactions={transactions} viewGroup="deposits" />;
+      case 'loans_view': return <Savings accounts={accounts} transactions={transactions} viewGroup="loans" />;
       case 'savings': return <Savings accounts={accounts} transactions={transactions} />;
-      case 'portfolio': return <Portfolio holdings={holdings} />;
+      case 'portfolio': return <Portfolio holdings={holdings} setActiveTab={setActiveTab} />;
       case 'analytics': return <Analytics transactions={transactions} holdings={holdings} />;
       case 'planner': return <Planner wallet={wallet} familyGoals={familyGoals} transactions={transactions} />;
       case 'taxplanner': return <TaxPlanner />;
@@ -252,49 +257,27 @@ export default function App() {
         {/* Mobile Bottom Nav */}
         <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Floating AI Assistant Button */}
+        {/* Floating Add Transaction Button */}
         <AnimatePresence>
-          {activeTab !== 'aichat' && activeTab !== 'profile' && (
-            <div className="fixed bottom-24 right-6 md:bottom-10 md:right-10 z-50 pointer-events-none">
+          {activeTab !== 'profile' && (
+            <div className="fixed bottom-24 right-6 md:bottom-10 md:right-10 z-50">
               <motion.div
-                drag
-                dragConstraints={{ 
-                  left: -window.innerWidth + 100, 
-                  right: 20, 
-                  top: -window.innerHeight + 200, 
-                  bottom: 20 
-                }}
-                dragElastic={0.05}
-                dragMomentum={false}
-                onDragEnd={(_, info) => {
-                  setChatPos({ 
-                    x: chatPos.x + info.offset.x, 
-                    y: chatPos.y + info.offset.y 
-                  });
-                }}
-                initial={{ scale: 0, opacity: 0, y: 20 }}
-                animate={{ 
-                  scale: 1, 
-                  opacity: 1, 
-                  x: chatPos.x, 
-                  y: chatPos.y 
-                }}
-                exit={{ scale: 0, opacity: 0, y: 20 }}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="pointer-events-auto"
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
                 <button
-                  onClick={() => setActiveTab('aichat')}
-                  className="w-14 h-14 bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-full shadow-2xl shadow-purple-200 flex items-center justify-center group border-4 border-white cursor-move relative"
+                  onClick={() => {
+                    setActiveTab('transactions');
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('openAddTransactionModal'));
+                    }, 50);
+                  }}
+                  className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-200 flex items-center justify-center group"
                 >
-                  <Sparkles size={24} className="group-hover:animate-pulse" />
-                  <div className="absolute -top-10 right-0 bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none uppercase tracking-widest">
-                    Ask AI
-                  </div>
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white">
-                    1
-                  </span>
+                  <Plus size={28} className="group-hover:rotate-90 transition-transform duration-300" />
                 </button>
               </motion.div>
             </div>
