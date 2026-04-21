@@ -48,9 +48,8 @@ export default function CashFlow({ transactions, setActiveTab }: CashFlowProps) 
       icon: Zap,
       color: 'text-amber-600',
       bgColor: 'bg-amber-50',
-      action: () => {}, // Placeholder for now
-      isUnderDevelopment: true,
-      stats: 'Coming Soon'
+      action: () => setActiveTab('autopilot'),
+      stats: 'Manage subs'
     },
     {
       id: 'reports',
@@ -130,11 +129,6 @@ export default function CashFlow({ transactions, setActiveTab }: CashFlowProps) 
             <div className="mb-2">
               <h3 className="font-display font-extrabold text-sm md:text-xl text-slate-800 flex flex-wrap items-center gap-1.5 leading-tight">
                 {card.title}
-                {card.isUnderDevelopment && (
-                  <span className="text-[7px] md:text-[8px] font-black bg-amber-100 text-amber-600 px-1 py-0.5 rounded uppercase flex items-center gap-0.5">
-                    <Sparkles size={8} /> Beta
-                  </span>
-                )}
               </h3>
             </div>
             <p className="text-[10px] md:text-xs text-slate-500 leading-tight md:leading-relaxed font-medium flex-1 mb-4 line-clamp-2 md:line-clamp-none">

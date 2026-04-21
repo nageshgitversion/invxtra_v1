@@ -1,22 +1,28 @@
-import React, { useState } from 'react';
-import { TrendingUp, Plus, RefreshCw, ArrowRight, ArrowLeft, Share2, X, CheckCircle2, Trash2, Edit2, ChevronRight } from 'lucide-react';
-import { Holding } from '../types';
-import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
+import React, { useState, useMemo } from 'react';
+import { TrendingUp, Plus, RefreshCw, ArrowRight, ArrowLeft, Share2, X, CheckCircle2, Trash2, Edit2, ChevronRight, Repeat, Info, ShieldCheck, Zap, PieChart as PieChartIcon } from 'lucide-react';
+import { Holding, RecurrenceFrequency, Transaction } from '../types';
+import { formatCurrency, formatCompactNumber, cn, getMonthlyCommitment } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
+import { processRecurringTransactions } from '../lib/recurrence';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, doc, updateDoc, increment, deleteDoc } from 'firebase/firestore';
 import { syncPortfolioHoldings } from '../services/portfolioService';
 import Modal from './Modal';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend } from 'recharts';
 
 interface PortfolioProps {
   holdings: Holding[];
+  allTransactions: Transaction[];
   setActiveTab?: (tab: string) => void;
   onBack?: () => void;
 }
 
-export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioProps) {
+export default function Portfolio({ holdings, allTransactions, setActiveTab, onBack }: PortfolioProps) {
   const { user } = useFirebase();
   const [filter, setFilter] = useState('');
+  const [showInsights, setShowInsights] = useState(false);
+
+  // ... rest of the existing state ...
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -28,6 +34,8 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
   const [current, setCurrent] = useState('');
   const [type, setType] = useState('Equity MF');
   const [sip, setSip] = useState('');
+  const [sipDay, setSipDay] = useState('5');
+  const [isRecurringSIP, setIsRecurringSIP] = useState(false);
   const [xirr, setXirr] = useState('');
   const [units, setUnits] = useState('');
   const [avgPrice, setAvgPrice] = useState('');
@@ -40,6 +48,47 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
   const [error, setError] = useState<string | null>(null);
 
   const { familyGoals, wallet, accounts } = useFirebase();
+
+  // Aggregate Data for Chart
+  const allocationData = useMemo(() => {
+    const categories: Record<string, number> = {};
+    holdings.forEach(h => {
+      categories[h.type] = (categories[h.type] || 0) + h.current;
+    });
+
+    return Object.entries(categories).map(([name, value]) => ({
+      name,
+      value,
+    })).sort((a, b) => b.value - a.value);
+  }, [holdings]);
+
+  const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+  const totalInv = holdings.reduce((acc, h) => acc + h.invested, 0);
+  const totalCur = holdings.reduce((acc, h) => acc + h.current, 0);
+  const totalRet = totalCur - totalInv;
+  const totalRetPct = totalInv > 0 ? Math.round((totalRet / totalInv) * 100) : 0;
+
+  // Weighted XIRR calculation (simplified)
+  const weightedXirr = useMemo(() => {
+    if (holdings.length === 0 || totalCur === 0) return 0;
+    const sum = holdings.reduce((acc, h) => acc + (h.xirr * h.current), 0);
+    return Math.round((sum / totalCur) * 10) / 10;
+  }, [holdings, totalCur]);
+
+  const taxInsights = useMemo(() => {
+    const elssActive = holdings.some(h => h.name.toLowerCase().includes('elss') || h.type.includes('ELSS'));
+    const debtExposure = holdings.filter(h => h.type.includes('Debt')).reduce((acc, h) => acc + h.current, 0);
+    const goldExposure = holdings.filter(h => h.type.includes('Gold')).reduce((acc, h) => acc + h.current, 0);
+    
+    return {
+      elssActive,
+      debtExposure,
+      goldExposure,
+      hasTaxSavers: elssActive || holdings.some(h => h.name.toLowerCase().includes('ppf')),
+      efficiency: elssActive ? 'High' : 'Medium'
+    };
+  }, [holdings]);
 
   const handleAddHolding = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,13 +177,58 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
         updatedAt: new Date().toISOString()
       };
 
+      let holdingId = editingHolding?.id;
       if (editingHolding) {
         await updateDoc(doc(db, 'holdings', editingHolding.id), holdingData);
       } else {
-        await addDoc(collection(db, 'holdings'), {
+        const docRef = await addDoc(collection(db, 'holdings'), {
           ...holdingData,
           createdAt: new Date().toISOString()
         });
+        holdingId = docRef.id;
+      }
+
+      // Handle Recurring SIP
+      if (isRecurringSIP && sip && sipDay) {
+        const amount = Math.round(parseFloat(sip));
+        const day = parseInt(sipDay);
+        const now = new Date();
+        const nextDate = new Date(now.getFullYear(), now.getMonth(), day);
+        if (nextDate < now) {
+          nextDate.setMonth(nextDate.getMonth() + 1);
+        }
+
+        const existingRec = (allTransactions as Transaction[]).find(t => t.isRecurring && t.targetId === holdingId);
+        
+        const recData: any = {
+          uid: user.uid,
+          name: `SIP: ${name}`,
+          amount: -Math.abs(amount),
+          type: 'investment',
+          category: 'Investment',
+          subCategory: type.includes('MF') ? 'Mutual Funds' : 'Stocks',
+          date: nextDate.toISOString().split('T')[0],
+          emoji: '📈',
+          isRecurring: true,
+          recurrence: 'monthly',
+          linkedAcc: fundSource === 'wallet' ? 'wallet' : fundSource,
+          targetId: holdingId,
+          lastProcessed: null,
+          createdAt: new Date().toISOString()
+        };
+
+        if (existingRec) {
+          await updateDoc(doc(db, 'transactions', existingRec.id), recData);
+          await processRecurringTransactions(user.uid, [{ id: existingRec.id, ...recData } as any], accounts, wallet, holdings);
+        } else {
+          const recDocRef = await addDoc(collection(db, 'transactions'), recData);
+          await processRecurringTransactions(user.uid, [{ id: recDocRef.id, ...recData } as any], accounts, wallet, holdings);
+        }
+      } else if (editingHolding) {
+        const existingRec = (allTransactions as Transaction[]).find(t => t.isRecurring && t.targetId === editingHolding.id);
+        if (existingRec) {
+          await deleteDoc(doc(db, 'transactions', existingRec.id));
+        }
       }
 
       setIsAddModalOpen(false);
@@ -152,6 +246,13 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
     setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'holdings', id));
+      
+      // Delete recurring SIP if exists
+      const recTx = (allTransactions as Transaction[]).find(t => t.isRecurring && t.targetId === id);
+      if (recTx) {
+        await deleteDoc(doc(db, 'transactions', recTx.id));
+      }
+
       setHoldingToDelete(null);
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, 'holdings');
@@ -167,6 +268,8 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
     setCurrent(h.current.toString());
     setType(h.type);
     setSip(h.sip.toString());
+    setSipDay('5');
+    setIsRecurringSIP(!!(allTransactions as Transaction[]).find(t => t.isRecurring && t.targetId === h.id));
     setXirr(h.xirr.toString());
     setUnits(h.units?.toString() || '');
     setAvgPrice(h.avgPrice?.toString() || '');
@@ -209,6 +312,8 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
     setCurrent('');
     setType('Equity MF');
     setSip('');
+    setSipDay('5');
+    setIsRecurringSIP(false);
     setXirr('');
     setUnits('');
     setAvgPrice('');
@@ -218,15 +323,10 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
     setError(null);
   };
 
-  const totalInv = holdings.reduce((acc, h) => acc + h.invested, 0);
-  const totalCur = holdings.reduce((acc, h) => acc + h.current, 0);
-  const totalRet = totalCur - totalInv;
-  const totalRetPct = totalInv > 0 ? Math.round((totalRet / totalInv) * 100) : 0;
-
   const filteredHoldings = holdings.filter(h => !filter || h.type === filter);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-20">
       {onBack && (
         <div className="flex items-center gap-4 px-2">
           <button 
@@ -238,19 +338,30 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Vault</span>
         </div>
       )}
-      <div className="flex justify-between items-end px-2">
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 px-2">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
             Investment overview {lastSyncTime && `· Last synced ${lastSyncTime}`}
           </p>
-          <h2 className="font-display font-extrabold text-2xl">Portfolio</h2>
+          <h2 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight text-slate-900">Portfolio</h2>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap md:justify-end w-full md:w-auto">
+          <button 
+            onClick={() => setShowInsights(!showInsights)}
+            className={cn(
+              "flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border font-display font-bold text-xs transition-all shadow-sm",
+              showInsights ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-100 text-slate-600 hover:bg-slate-50"
+            )}
+          >
+            <Zap size={14} /> Insights
+          </button>
           <button 
             onClick={handleSync}
             disabled={isSyncing || holdings.length === 0}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl border border-indigo-100 bg-white text-indigo-600 font-display font-bold text-xs shadow-sm transition-all hover:bg-indigo-50",
+              "flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-100 bg-white text-slate-900 font-display font-bold text-xs shadow-sm transition-all hover:bg-slate-50",
               isSyncing && "opacity-50 cursor-not-allowed"
             )}
           >
@@ -259,10 +370,159 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
           </button>
           <button 
             onClick={() => { setError(null); setIsAddModalOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-display font-bold text-xs shadow-md shadow-indigo-100 hover:bg-indigo-700"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-display font-bold text-xs shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
           >
             <Plus size={14} /> Add Holding
           </button>
+        </div>
+      </div>
+
+      {/* Analytics Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 px-2">
+        {/* Main Stats and Chart */}
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white border border-slate-100 p-8 rounded-[40px] shadow-sm flex flex-col justify-between">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Portfolio Value</p>
+                <h3 className="text-4xl font-display font-black text-slate-900 leading-tight">
+                  {formatCurrency(totalCur)}
+                </h3>
+              </div>
+              <div className={cn(
+                "px-3 py-1.5 rounded-full flex items-center gap-1.5 font-display font-black text-xs",
+                totalRet >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+              )}>
+                {totalRet >= 0 ? <TrendingUp size={14} /> : <TrendingUp size={14} className="rotate-180" />}
+                {totalRetPct > 0 ? '+' : ''}{totalRetPct}%
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Invested Capital</p>
+                <p className="text-xl font-display font-black text-slate-700">{formatCompactNumber(totalInv)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Weighted XIRR</p>
+                <p className="text-xl font-display font-black text-amber-600">{weightedXirr}%</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-100 p-8 rounded-[40px] shadow-sm relative overflow-hidden h-full min-h-[250px]">
+             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Asset Allocation</p>
+             <div className="h-[180px] w-full">
+                {holdings.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={allocationData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {allocationData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <ReTooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-slate-900 text-white p-3 rounded-xl border border-white/10 shadow-xl">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{payload[0].name}</p>
+                                <p className="text-sm font-display font-black">{formatCurrency(payload[0].value as number)}</p>
+                                <p className="text-[10px] font-bold text-indigo-400">{Math.round((payload[0].value as number / totalCur) * 100)}% Allocation</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center flex-col text-slate-300 gap-2">
+                    <PieChartIcon size={32} />
+                    <p className="text-[10px] font-black uppercase">No Data Available</p>
+                  </div>
+                )}
+             </div>
+             {holdings.length > 0 && (
+               <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 justify-center">
+                 {allocationData.slice(0, 4).map((item, i) => (
+                   <div key={i} className="flex items-center gap-1.5">
+                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
+                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">{item.name}</span>
+                   </div>
+                 ))}
+               </div>
+             )}
+          </div>
+        </div>
+
+        {/* Tactical Insights Section */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-slate-900 p-8 rounded-[40px] text-white shadow-xl relative overflow-hidden h-full">
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-8">
+                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Tax & Strategy</h4>
+                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-indigo-400">
+                  <Zap size={16} />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tax Efficiency</p>
+                    <span className={cn(
+                      "text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest",
+                      taxInsights.efficiency === 'High' ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"
+                    )}>{taxInsights.efficiency}</span>
+                  </div>
+                  {!taxInsights.elssActive && (
+                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-start gap-3 mt-4 group cursor-pointer hover:bg-white/10 transition-all">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">
+                        <TrendingUp size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white mb-1">ELSS Suggestion</p>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">Save up to ₹46,800 in taxes annually with Equity Linked Savings Schemes (80C).</p>
+                      </div>
+                    </div>
+                  )}
+                  {taxInsights.goldExposure < (totalCur * 0.05) && (
+                    <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-start gap-3 mt-3 group cursor-pointer hover:bg-white/10 transition-all">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
+                        <Zap size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white mb-1">Gold Under-allocation</p>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">Consider Sovereign Gold Bonds (SGB) for tax-free capital gains and 2.5% annual interest.</p>
+                      </div>
+                    </div>
+                  )}
+                  {taxInsights.hasTaxSavers && (
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/10 flex items-start gap-3 mt-4">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                        <ShieldCheck size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white mb-1">Tax Shield Active</p>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">Your portfolio currently includes tax-saving instruments like ELSS or PPF.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
+          </div>
         </div>
       </div>
 
@@ -391,16 +651,40 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">XIRR (%)</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1 text-slate-400">SIP Day</label>
               <input 
                 type="number" 
-                step="0.1"
-                value={xirr}
-                onChange={(e) => setXirr(e.target.value)}
-                placeholder="0.0"
+                value={sipDay}
+                onChange={(e) => setSipDay(e.target.value)}
+                placeholder="1-31"
                 className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
               />
             </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+                <Repeat size={18} />
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-900 leading-tight">Recurring SIP</p>
+                <p className="text-[10px] font-bold text-indigo-600">Add to Autopilot</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsRecurringSIP(!isRecurringSIP)}
+              className={cn(
+                "w-12 h-6 rounded-full transition-all relative",
+                isRecurringSIP ? "bg-indigo-600" : "bg-slate-200"
+              )}
+            >
+              <div className={cn(
+                "absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                isRecurringSIP ? "right-1" : "left-1"
+              )} />
+            </button>
           </div>
 
           <div className="space-y-1">
@@ -495,13 +779,6 @@ export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioP
           </div>
         </div>
       </Modal>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Current Value" value={formatCompactNumber(totalCur)} color="text-emerald-600" />
-        <StatCard label="Invested" value={formatCompactNumber(totalInv)} color="text-slate-900" />
-        <StatCard label="Returns" value={formatCompactNumber(totalRet)} color="text-purple-600" />
-        <StatCard label="Overall Return" value={`${totalRetPct}%`} color="text-amber-600" />
-      </div>
 
       {/* Holdings Section */}
       <section>

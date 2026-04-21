@@ -14,7 +14,7 @@ import {
   BarChart3,
   ArrowLeft
 } from 'lucide-react';
-import { TaxProfile, TaxRegime } from '../types';
+import { TaxProfile, TaxRegime, Holding } from '../types';
 import { cn, formatCurrency, formatCompactNumber } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -29,15 +29,26 @@ import {
   Legend
 } from 'recharts';
 
-export default function TaxPlanner({ onBack }: { onBack?: () => void }) {
+export default function TaxPlanner({ holdings = [], onBack }: { holdings?: Holding[], onBack?: () => void }) {
   const [profile, setProfile] = useState<TaxProfile>({
     regime: 'new',
     annualIncome: 1200000,
-    deductions80C: 150000,
+    deductions80C: Math.min(150000, holdings.reduce((acc, h) => {
+      if (h.name.toLowerCase().includes('elss') || h.name.toLowerCase().includes('ppf') || h.name.toLowerCase().includes('nsc')) {
+        return acc + h.invested;
+      }
+      return acc;
+    }, 0)),
     deductions80D: 25000,
     hra: 0,
-    otherDeductions: 0,
-    ltcg: 0,
+    otherDeductions: holdings.reduce((acc, h) => {
+      if (h.name.toLowerCase().includes('nps')) return acc + h.invested;
+      return acc;
+    }, 0),
+    ltcg: holdings.reduce((acc, h) => {
+      if (h.current > h.invested) return acc + (h.current - h.invested);
+      return acc;
+    }, 0),
     stcg: 0,
     age: 30,
   });

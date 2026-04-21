@@ -38,7 +38,8 @@ export default function Savings({ accounts, transactions, viewGroup, onBack }: S
   const [maturityDate, setMaturityDate] = useState('');
   const [interestEarned, setInterestEarned] = useState('');
   const [emi, setEmi] = useState('');
-  const [emiday, setEmiday] = useState('');
+  const [emiday, setEmiday] = useState('5');
+  const [isRecurringAccount, setIsRecurringAccount] = useState(false);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [payoutFrequency, setPayoutFrequency] = useState<PayoutFrequency>('at-maturity');
   const [linkedGoalId, setLinkedGoalId] = useState('');
@@ -227,8 +228,8 @@ export default function Savings({ accounts, transactions, viewGroup, onBack }: S
         }
       }
 
-      // If it's a loan, RD, or PF account with EMI/Contribution, add/update a recurring transaction to "block" the amount
-      if ((type === 'loan' || type === 'rd' || ['ppf', 'nps', 'epf'].includes(type)) && emi && emiday) {
+      // If it's selected as recurring, add/update a recurring transaction to "block" the amount
+      if (isRecurringAccount && emi && emiday) {
         const amount = Math.round(parseFloat(emi));
         const day = parseInt(emiday);
         
@@ -384,7 +385,8 @@ export default function Savings({ accounts, transactions, viewGroup, onBack }: S
     setMaturityDate(acc.maturityDate || '');
     setInterestEarned(acc.interestEarned?.toString() || '');
     setEmi(acc.emi?.toString() || '');
-    setEmiday(acc.emiday?.toString() || '');
+    setEmiday(acc.emiday?.toString() || '5');
+    setIsRecurringAccount(!!transactions.find(t => t.isRecurring && t.targetId === acc.id));
     setStartDate(acc.start || new Date().toISOString().split('T')[0]);
     setPayoutFrequency(acc.payoutFrequency || 'at-maturity');
     setLinkedGoalId(acc.linkedGoalId || '');
@@ -529,7 +531,8 @@ export default function Savings({ accounts, transactions, viewGroup, onBack }: S
     setMaturityDate('');
     setInterestEarned('');
     setEmi('');
-    setEmiday('');
+    setEmiday('5');
+    setIsRecurringAccount(false);
     setStartDate(new Date().toISOString().split('T')[0]);
     setPayoutFrequency('at-maturity');
     setLinkedGoalId('');
@@ -844,6 +847,31 @@ export default function Savings({ accounts, transactions, viewGroup, onBack }: S
               />
             </div>
           )}
+
+          <div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+                <Repeat size={18} />
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-900 leading-tight">Recurring Payment</p>
+                <p className="text-[10px] font-bold text-indigo-600">Add to Autopilot</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsRecurringAccount(!isRecurringAccount)}
+              className={cn(
+                "w-12 h-6 rounded-full transition-all relative",
+                isRecurringAccount ? "bg-indigo-600" : "bg-slate-200"
+              )}
+            >
+              <div className={cn(
+                "absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                isRecurringAccount ? "right-1" : "left-1"
+              )} />
+            </button>
+          </div>
 
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Source of Funds</label>
