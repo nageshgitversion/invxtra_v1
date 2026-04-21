@@ -59,7 +59,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             (item.id === 'vault' && ['savings', 'portfolio', 'savings_view', 'deposits_view', 'loans_view', 'investments_view'].includes(activeTab)) ||
             (item.id === 'cashflow' && ['transactions', 'reports'].includes(activeTab)) ||
             (item.id === 'space' && ['household', 'split'].includes(activeTab)) ||
-            (item.id === 'insights' && ['analytics', 'taxplanner', 'simulator'].includes(activeTab));
+            (item.id === 'insights' && ['analytics', 'taxplanner', 'simulator', 'moneyflow'].includes(activeTab));
           return (
           <button
             key={item.id}

@@ -20,14 +20,16 @@ import {
   LogOut,
   Settings as SettingsIcon,
   Menu,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import { INITIAL_TRANSACTIONS, INITIAL_HOLDINGS, INITIAL_ACCOUNTS } from './constants';
 import { Transaction, Holding, Account, Wallet as WalletType } from './types';
 import { formatCurrency, formatCompactNumber, cn } from './lib/utils';
-import { getFinancialInsights, chatWithInvxtra } from './services/geminiService';
+import { getFinancialInsights, chatWithInvxtra, getVarianceAnalysis } from './services/geminiService';
 import { useFirebase } from './lib/FirebaseProvider';
 import { processRecurringTransactions } from './lib/recurrence';
+import MoneyFlowAnalysis from './components/MoneyFlowAnalysis';
 import { checkAndSweepWallet } from './lib/walletService';
 import { signInWithGoogle, logout } from './lib/firebase';
 
@@ -77,7 +79,11 @@ export default function App() {
     familyMembers
   } = useFirebase();
   const [activeTab, setActiveTab] = useState('home');
+  const [moneyFlowRange, setMoneyFlowRange] = useState<any>('This Month');
   const [insights, setInsights] = useState<string[]>([]);
+  const [varianceInsights, setVarianceInsights] = useState<any[]>([]);
+  const [showVariancePopup, setShowVariancePopup] = useState(false);
+  const [hasShownVarianceThisSession, setHasShownVarianceThisSession] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasCheckedRecurring, setHasCheckedRecurring] = useState(false);
   const [modalType, setModalType] = useState<string | null>(null);
@@ -87,7 +93,12 @@ export default function App() {
   const [chatPos, setChatPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    const handleTabChange = (e: any) => setActiveTab(e.detail);
+    const handleTabChange = (e: any) => {
+      setActiveTab(e.detail.tab || e.detail);
+      if (e.detail.payload?.range) {
+        setMoneyFlowRange(e.detail.payload.range);
+      }
+    };
     const handleOpenWallet = () => setIsWalletModalOpen(true);
     const handleOpenFeatureGuide = () => setIsFeatureGuideOpen(true);
     
@@ -157,6 +168,20 @@ export default function App() {
       
       const res = await getFinancialInsights(data);
       if (Array.isArray(res)) setInsights(res);
+
+      // Fetch Variance Analysis for Popup - Show on every login/open
+      if (!hasShownVarianceThisSession) {
+        const vData = {
+          transactions: transactions.slice(0, 50),
+          envelopes: wallet?.envelopes || {},
+        };
+        const vRes = await getVarianceAnalysis(vData);
+        if (vRes && vRes.length > 0) {
+          setVarianceInsights(vRes);
+          setShowVariancePopup(true);
+          setHasShownVarianceThisSession(true);
+        }
+      }
     };
     loadInsights();
   }, [user, holdings, transactions]);
@@ -233,6 +258,7 @@ export default function App() {
       case 'cashflow': return <CashFlow transactions={transactions} setActiveTab={setActiveTab} />;
       case 'autopilot': return <Autopilot transactions={transactions} accounts={accounts} holdings={holdings} onBack={() => setActiveTab('cashflow')} />;
       case 'reports': return <Reports transactions={transactions} onBack={() => setActiveTab('cashflow')} />;
+      case 'moneyflow': return <MoneyFlowAnalysis transactions={transactions} initialTimeRange={moneyFlowRange} onBack={() => setActiveTab(moneyFlowRange === 'Yesterday' ? 'home' : 'analytics')} />;
       case 'split': return <SmartSplit onBack={() => setActiveTab('space')} />;
       case 'household': return <Household onBack={() => setActiveTab('space')} />;
       case 'space': return <Space setActiveTab={setActiveTab} />;
@@ -345,6 +371,76 @@ export default function App() {
       </aside>
 
       <CommandPalette />
+      
+      {/* AI Variance Analysis Popup */}
+      <AnimatePresence>
+        {showVariancePopup && varianceInsights.length > 0 && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowVariancePopup(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" 
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-lg rounded-[40px] overflow-hidden shadow-2xl border border-indigo-100"
+            >
+              <div className="bg-indigo-600 p-8 text-white relative">
+                <button 
+                  onClick={() => setShowVariancePopup(false)}
+                  className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+                <div className="w-16 h-16 rounded-3xl bg-white/20 flex items-center justify-center mb-6">
+                  <Sparkles size={32} />
+                </div>
+                <h2 className="text-3xl font-display font-black leading-tight">Engine Analysis</h2>
+                <p className="text-indigo-100 text-sm mt-2">Personalized behavioral insights detected by AI.</p>
+              </div>
+              
+              <div className="p-8 space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar">
+                {varianceInsights.map((insight) => (
+                  <div key={insight.id} className="bg-slate-50 border border-slate-100 p-6 rounded-[32px] group hover:border-indigo-200 transition-all">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Action Required</span>
+                      </div>
+                      <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg">{insight.variance}% over</span>
+                    </div>
+                    <h3 className="font-display font-black text-lg text-slate-900 mb-2">{insight.title}</h3>
+                    <p className="text-slate-500 text-sm leading-relaxed mb-6">{insight.description}</p>
+                    <button 
+                      onClick={() => {
+                        setShowVariancePopup(false);
+                        setActiveTab('portfolio');
+                      }}
+                      className="w-full bg-slate-900 text-white font-display font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-100"
+                    >
+                      <Zap size={18} className="text-amber-400" /> Optimize Portfolio Now
+                    </button>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex justify-center">
+                <button 
+                  onClick={() => setShowVariancePopup(false)}
+                  className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600 transition-colors"
+                >
+                  Dismiss for now
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Modals would be handled here */}
     </div>
   );

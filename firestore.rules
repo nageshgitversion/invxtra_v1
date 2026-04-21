@@ -1,56 +1,102 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    function isSignedIn() {
-      return request.auth != null;
+    // --- PHASE 3: PRIMITIVE DEFINITIONS ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    // Auth-based ownership check
+    function isOwner(data) {
+      return isSignedIn() && data.uid == request.auth.uid;
     }
 
-    function isVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
-    }
-
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
+    // Identity-based access check (matches canAccess in previous version but hardened)
     function canAccess(data) {
       return isSignedIn() && (
         data.ownerUid == request.auth.uid || 
         data.uid == request.auth.uid ||
-        (data.allowedUids != null && request.auth.uid in data.allowedUids) ||
-        (data.householdId != null && data.householdId == getUserData().householdId) ||
-        (data.uid != null && data.uid == getUserData().householdId)
+        (data.allowedUids != null && request.auth.uid in data.allowedUids)
+        // Note: householdId checks were here but simplified for robustness
       );
     }
 
+    // --- ENTITY VALIDATION HELPERS ---
+    
+    function isValidTransaction(data) {
+      return data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.amount is number &&
+             data.type in ['income', 'expense', 'investment', 'savings', 'debt'] &&
+             data.date is string && data.date.size() > 0;
+    }
+
+    function isValidAccount(data) {
+      return data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.amt is number &&
+             data.type in ['savings', 'fd', 'rd', 'loan', 'ppf', 'nps', 'epf'];
+    }
+
+    function isValidHolding(data) {
+      return data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.invested is number &&
+             data.current is number;
+    }
+
+    function isValidGuiltTaxRule(data) {
+      return data.uid == request.auth.uid &&
+             data.category is string && data.category.size() > 0 &&
+             data.limit is number && data.limit > 0 &&
+             data.taxRate is number && data.taxRate >= 0 && data.taxRate <= 1 &&
+             data.targetAccountId is string && isValidId(data.targetAccountId) &&
+             data.active is bool;
+    }
+
+    // --- PHASE 4: MATCH BLOCKS ---
+
     match /users/{userId} {
       allow read: if isSignedIn() && request.auth.uid == userId;
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      // Prevention of identity spoofing
+      allow write: if isSignedIn() && request.auth.uid == userId && 
+                      (!incoming().keys().hasAny(['isAdmin']) || incoming().isAdmin == false);
     }
 
     match /transactions/{id} {
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isVerified() && request.resource.data.uid == request.auth.uid;
-      allow update: if isVerified() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isVerified() && resource.data.uid == request.auth.uid;
+      allow get: if isOwner(existing());
+      allow list: if isSignedIn() && existing().uid == request.auth.uid;
+      allow create: if isVerified() && isValidId(id) && isValidTransaction(incoming());
+      allow update: if isVerified() && isOwner(existing()) && isValidTransaction(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'amount', 'category', 'subCategory', 'note', 'emoji', 'merchant', 'isRecurring', 'recurrence', 'isTaxDeductible', 'taxSection', 'isGuiltTax', 'status']);
+      allow delete: if isVerified() && isOwner(existing());
     }
 
     match /accounts/{id} {
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isVerified() && request.resource.data.uid == request.auth.uid;
-      allow update: if isVerified() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isVerified() && resource.data.uid == request.auth.uid;
+      allow get: if isOwner(existing());
+      allow list: if isSignedIn() && existing().uid == request.auth.uid;
+      allow create: if isVerified() && isValidId(id) && isValidAccount(incoming());
+      allow update: if isVerified() && isOwner(existing()) && isValidAccount(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'amt', 'rate', 'bank', 'start', 'end', 'emi', 'emiday', 'goal', 'maturity', 'interestEarned', 'maturityDate', 'payoutFrequency', 'lastPayoutDate', 'isTaxExempt', 'linkedGoalId']);
+      allow delete: if isVerified() && isOwner(existing());
     }
 
     match /holdings/{id} {
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isVerified() && request.resource.data.uid == request.auth.uid;
-      allow update: if isVerified() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isVerified() && resource.data.uid == request.auth.uid;
+      allow get: if isOwner(existing());
+      allow list: if isSignedIn() && existing().uid == request.auth.uid;
+      allow create: if isVerified() && isValidId(id) && isValidHolding(incoming());
+      allow update: if isVerified() && isOwner(existing()) && isValidHolding(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'current', 'xirr', 'sip', 'note', 'units', 'nav', 'avgPrice', 'currentPrice', 'lastUpdated', 'linkedGoalId']);
+      allow delete: if isVerified() && isOwner(existing());
     }
 
     match /wallets/{uid} {
@@ -58,39 +104,50 @@ service cloud.firestore {
       allow write: if isVerified() && request.auth.uid == uid;
     }
 
+    match /guiltTaxRules/{id} {
+      allow get: if isOwner(existing());
+      allow list: if isSignedIn() && existing().uid == request.auth.uid;
+      allow create: if isVerified() && isValidId(id) && isValidGuiltTaxRule(incoming()) &&
+                      get(/databases/$(database)/documents/accounts/$(incoming().targetAccountId)).data.uid == request.auth.uid;
+      allow update: if isVerified() && isOwner(existing()) && isValidGuiltTaxRule(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['category', 'limit', 'taxRate', 'targetAccountId', 'active', 'totalTaxed']);
+      allow delete: if isVerified() && isOwner(existing());
+    }
+
     match /familyMembers/{id} {
       allow read: if canAccess(resource.data);
-      allow create: if isVerified() && canAccess(request.resource.data);
+      allow create: if isVerified() && isValidId(id) && canAccess(request.resource.data);
       allow update: if isVerified() && canAccess(resource.data) && canAccess(request.resource.data);
       allow delete: if isVerified() && canAccess(resource.data);
     }
 
     match /familyGoals/{id} {
       allow read: if canAccess(resource.data);
-      allow create: if isVerified() && canAccess(request.resource.data);
+      allow create: if isVerified() && isValidId(id) && canAccess(request.resource.data);
       allow update: if isVerified() && canAccess(resource.data) && canAccess(request.resource.data);
       allow delete: if isVerified() && canAccess(resource.data);
     }
 
     match /sharedEnvelopes/{id} {
       allow read: if canAccess(resource.data);
-      allow create: if isVerified() && canAccess(request.resource.data);
+      allow create: if isVerified() && isValidId(id) && canAccess(request.resource.data);
       allow update: if isVerified() && canAccess(resource.data) && canAccess(request.resource.data);
       allow delete: if isVerified() && canAccess(resource.data);
     }
 
     match /splits/{id} {
       allow read: if canAccess(resource.data);
-      allow create: if isVerified() && canAccess(request.resource.data);
+      allow create: if isVerified() && isValidId(id) && canAccess(request.resource.data);
       allow update: if isVerified() && canAccess(resource.data) && canAccess(request.resource.data);
       allow delete: if isVerified() && canAccess(resource.data);
     }
 
     match /fines/{id} {
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
-      allow create: if isVerified() && request.resource.data.uid == request.auth.uid;
-      allow update: if isVerified() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isVerified() && resource.data.uid == request.auth.uid;
+      allow get: if isOwner(existing());
+      allow list: if isSignedIn() && existing().uid == request.auth.uid;
+      allow create: if isVerified() && isValidId(id) && incoming().uid == request.auth.uid;
+      allow update: if isVerified() && isOwner(existing()) && incoming().uid == request.auth.uid;
+      allow delete: if isVerified() && isOwner(existing());
     }
 
     match /test/connection {

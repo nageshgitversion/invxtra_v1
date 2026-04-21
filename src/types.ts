@@ -14,14 +14,42 @@ export interface Transaction {
   note?: string;
   linkedAcc?: string;
   targetId?: string; // ID of Account or Holding impacted (e.g., Loan id for EMI)
+  merchant?: string; // Platform/Merchant name (e.g. "Amazon", "Zomato") - NEW
   isRecurring?: boolean;
   recurrence?: RecurrenceFrequency;
   lastProcessed?: string; // ISO date string
   isTaxDeductible?: boolean;
   taxSection?: string; // e.g., '80C', '80D'
+  isGuiltTax?: boolean; // If this was a penalty transfer - NEW
   isCapitalGain?: boolean;
   gainType?: 'LTCG' | 'STCG';
   status?: 'completed' | 'scheduled';
+}
+
+export interface GuiltTaxRule {
+  id: string;
+  uid: string;
+  category: string;
+  limit: number;
+  taxRate: number; // e.g. 0.2 for 20%
+  targetAccountId: string; // Where the "tax" goes
+  active: boolean;
+  totalTaxed?: number;
+}
+
+export interface CategoryBudget {
+  category: string;
+  limit: number;
+  spent: number;
+  period: 'monthly' | 'yearly';
+}
+
+export interface VarianceInsight {
+  category: string;
+  variance: number; // percentage
+  surplus: number;
+  status: 'critical' | 'warning' | 'healthy';
+  action?: 'restrict' | 'invest';
 }
 
 export interface Holding {

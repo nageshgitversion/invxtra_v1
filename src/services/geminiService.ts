@@ -251,3 +251,61 @@ export async function scanReceipt(imageBase64: string, mimeType: string) {
     throw new Error("Failed to scan receipt. Please try again.");
   }
 }
+export async function getVarianceAnalysis(userData: any) {
+  if (!apiKey) return null;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `You are a financial variance analyst.
+      Analyze the user's spending against their categorized budgets (found in envelopes or manual budget data).
+      
+      TASK:
+      1. Calculate "Budget Variance" for each category.
+      2. Identify "Critical" categories (where spending is > 90% of budget).
+      3. Identify "Surplus" categories (where spending is < 30% of budget and significant absolute surplus exists).
+      4. Generate actionable "Restrict & Invest" pairs.
+      
+      Data: ${JSON.stringify(userData)}
+      
+      Return a JSON array of objects with this SPECIFIC schema:
+      {
+        "id": "unique_id",
+        "title": "Restrict [Critical Category]",
+        "description": "You have a ₹[Amount] surplus in [Surplus Category]—tap here to invest it.",
+        "variance": 95, 
+        "criticalCategory": "Dining",
+        "surplusCategory": "Transport",
+        "surplusAmount": 3000,
+        "action": "invest"
+      }
+      
+      Constraint: Only return pairs where it actually makes sense (surplus > 500).`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              title: { type: Type.STRING },
+              description: { type: Type.STRING },
+              variance: { type: Type.NUMBER },
+              criticalCategory: { type: Type.STRING },
+              surplusCategory: { type: Type.STRING },
+              surplusAmount: { type: Type.NUMBER },
+              action: { type: Type.STRING }
+            },
+            required: ["id", "title", "description", "variance", "criticalCategory", "surplusCategory", "surplusAmount", "action"]
+          }
+        }
+      }
+    });
+
+    return JSON.parse(cleanJson(response.text || "[]"));
+  } catch (error) {
+    console.error("Variance analysis error:", error);
+    return [];
+  }
+}

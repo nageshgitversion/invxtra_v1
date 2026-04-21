@@ -163,6 +163,22 @@
         "contributions": { "type": "object" }
       },
       "required": ["uid", "name", "budget", "spent"]
+    },
+    "GuiltTaxRule": {
+      "title": "Guilt Tax Rule",
+      "description": "A behavioral rule that penalizes overspending into savings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "category": { "type": "string" },
+        "limit": { "type": "number" },
+        "taxRate": { "type": "number" },
+        "targetAccountId": { "type": "string" },
+        "active": { "type": "boolean" },
+        "totalTaxed": { "type": "number" }
+      },
+      "required": ["id", "uid", "category", "limit", "taxRate", "targetAccountId", "active"]
     }
   },
   "firestore": {
@@ -205,6 +221,10 @@
     "/sharedEnvelopes/{id}": {
       "schema": "SharedEnvelope",
       "description": "Shared envelopes collection."
+    },
+    "/guiltTaxRules/{id}": {
+      "schema": "GuiltTaxRule",
+      "description": "Rules for the guilt tax engine."
     }
   }
 }

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { Transaction, Holding, Account, Wallet, FamilyGoal, FamilyMember, Split, SpendingFine, UserProfile, SharedEnvelope } from '../types';
+import { Transaction, Holding, Account, Wallet, FamilyGoal, FamilyMember, Split, SpendingFine, UserProfile, SharedEnvelope, GuiltTaxRule } from '../types';
 
 interface FirebaseContextType {
   user: User | null;
@@ -16,6 +16,7 @@ interface FirebaseContextType {
   familyMembers: FamilyMember[];
   splits: Split[];
   fines: SpendingFine[];
+  guiltTaxRules: GuiltTaxRule[];
   userProfile: UserProfile | null;
   sharedEnvelopes: SharedEnvelope[];
 }
@@ -34,6 +35,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [splits, setSplits] = useState<Split[]>([]);
   const [fines, setFines] = useState<SpendingFine[]>([]);
+  const [guiltTaxRules, setGuiltTaxRules] = useState<GuiltTaxRule[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [sharedEnvelopes, setSharedEnvelopes] = useState<SharedEnvelope[]>([]);
 
@@ -129,6 +131,14 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setFines(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as SpendingFine)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'fines'));
 
+    const guiltRulesQuery = query(
+      collection(db, 'guiltTaxRules'),
+      where('uid', '==', user.uid)
+    );
+    const unsubGuiltRules = onSnapshot(guiltRulesQuery, (snapshot) => {
+      setGuiltTaxRules(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as GuiltTaxRule)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'guiltTaxRules'));
+
     return () => {
       unsubUser();
       unsubTx();
@@ -136,6 +146,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       unsubAccounts();
       unsubWallet();
       unsubFines();
+      unsubGuiltRules();
     };
   }, [user]);
 
@@ -205,6 +216,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       familyMembers,
       splits,
       fines,
+      guiltTaxRules,
       userProfile,
       sharedEnvelopes
     }}>

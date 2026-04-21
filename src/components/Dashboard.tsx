@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { motion, useMotionValue, useTransform, useSpring } from 'motion/react';
-import { Sparkles, TrendingUp, Wallet, Activity, Zap, Bell, ShieldCheck, PieChart, Info, Plus } from 'lucide-react';
+import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'motion/react';
+import { Sparkles, TrendingUp, Wallet, Activity, Zap, Bell, ShieldCheck, PieChart, Info, Plus, Clock, ArrowRight } from 'lucide-react';
 import { Transaction, Holding, Account, Wallet as WalletType } from '../types';
 import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
@@ -269,6 +269,55 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
       .slice(0, 4);
   }, [transactions]);
 
+  // 4.1 Critical Smart Alerts (Nudges)
+  const criticalAlerts = useMemo(() => {
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    
+    const alerts: any[] = [];
+    const targetDays = [0, 1, 3, 7];
+    
+    // Recurring Bills / EMIs from transactions
+    transactions.filter(t => t.isRecurring && t.type !== 'income').forEach(t => {
+      const nextDate = new Date(t.date);
+      nextDate.setHours(0,0,0,0);
+      const daysLeft = Math.ceil((nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (targetDays.includes(daysLeft)) {
+        alerts.push({
+          id: `bill_${t.id}_${daysLeft}`,
+          type: 'bill',
+          title: daysLeft === 0 ? `${t.name} is due today` : `${t.name} due in ${daysLeft} days`,
+          amount: Math.abs(t.amount),
+          icon: t.emoji || '💸',
+          daysLeft,
+          severity: daysLeft <= 1 ? 'critical' : 'warning'
+        });
+      }
+    });
+
+    // Account Maturity (FD/RD)
+    accounts.filter(a => (a.type === 'fd' || a.type === 'rd') && a.maturityDate).forEach(a => {
+      const maturityDate = new Date(a.maturityDate!);
+      maturityDate.setHours(0,0,0,0);
+      const daysLeft = Math.ceil((maturityDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (targetDays.includes(daysLeft)) {
+        alerts.push({
+          id: `maturity_${a.id}_${daysLeft}`,
+          type: 'maturity',
+          title: daysLeft === 0 ? `${a.name} matures today!` : `${a.name} matures in ${daysLeft} days`,
+          amount: a.amt,
+          icon: '💎',
+          daysLeft,
+          severity: 'info'
+        });
+      }
+    });
+
+    return alerts.sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [transactions, accounts]);
+
   // 5. Wallet Pulse
   const envelopes = wallet ? Object.values(wallet.envelopes).filter(e => e.budget > 0 || e.spent > 0) : [];
   const totalBudget = envelopes.reduce((acc, e) => acc + e.budget, 0);
@@ -339,6 +388,70 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
       )}
 
       <div className={cn("space-y-8 pb-10", showWalletSetupPopup && "h-screen overflow-hidden pointer-events-none opacity-40 blur-sm")}>
+        {/* Proactive Critical Alerts */}
+        <AnimatePresence>
+          {criticalAlerts.length > 0 && (
+            <section className="px-2">
+              <div className="flex flex-col gap-3">
+                {criticalAlerts.map((alert) => (
+                  <motion.div 
+                    key={alert.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className={cn(
+                      "flex items-center gap-4 p-5 rounded-3xl border shadow-sm",
+                      alert.severity === 'critical' ? "bg-red-50 border-red-100" : 
+                      alert.severity === 'warning' ? "bg-amber-50 border-amber-100" : "bg-indigo-50 border-indigo-100"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm",
+                      alert.severity === 'critical' ? "bg-white text-red-600" : 
+                      alert.severity === 'warning' ? "bg-white text-amber-600" : "bg-white text-indigo-600"
+                    )}>
+                      {alert.icon}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <h4 className={cn(
+                          "font-display font-black text-sm",
+                          alert.severity === 'critical' ? "text-red-900" : 
+                          alert.severity === 'warning' ? "text-amber-900" : "text-indigo-900"
+                        )}>{alert.title}</h4>
+                        <span className={cn(
+                          "text-[10px] font-black uppercase tracking-widest",
+                          alert.severity === 'critical' ? "text-red-500" : 
+                          alert.severity === 'warning' ? "text-amber-500" : "text-indigo-500"
+                        )}>
+                          {alert.daysLeft === 0 ? 'Today' : `${alert.daysLeft}d left`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className={cn(
+                          "text-xs font-bold",
+                          alert.severity === 'critical' ? "text-red-700/60" : 
+                          alert.severity === 'warning' ? "text-amber-700/60" : "text-indigo-700/60"
+                        )}>{formatCurrency(alert.amount)}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => onTabChange?.(alert.type === 'bill' ? 'cashflow' : 'vault')}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm hover:scale-105 transition-all text-white",
+                        alert.severity === 'critical' ? "bg-red-600" : 
+                        alert.severity === 'warning' ? "bg-amber-600" : "bg-indigo-600"
+                      )}
+                    >
+                      Process
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
+        </AnimatePresence>
+
         {/* Header & Quick Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
         <div>
@@ -375,6 +488,34 @@ export default function Dashboard({ transactions, holdings, accounts, insights, 
 
       {/* Financial State Sections */}
       
+      {/* Yesterday's Recap Card (NEW) */}
+      <section className="px-2">
+        <motion.div 
+          onClick={() => onTabChange?.('moneyflow', { range: 'Yesterday' })}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 md:p-8 rounded-[40px] shadow-xl text-white cursor-pointer relative overflow-hidden group"
+        >
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 rounded-[24px] bg-white/10 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                <Clock size={32} />
+              </div>
+              <div>
+                <h3 className="font-display font-black text-2xl leading-tight">Yesterday's Pulse</h3>
+                <p className="text-slate-400 text-sm mt-1 max-w-xs">Curious how your money flows? Analyze your platform burn from yesterday.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-indigo-400 group-hover:translate-x-2 transition-transform bg-white/5 px-6 py-3 rounded-2xl">
+              Check Recap <ArrowRight size={16} />
+            </div>
+          </div>
+          <div className="absolute -right-20 -top-20 opacity-10 pointer-events-none group-hover:scale-120 transition-transform">
+            <Activity size={240} />
+          </div>
+        </motion.div>
+      </section>
+
       {/* 1. Total Networth Card */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <SpatialNetWorthCard 
