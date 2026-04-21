@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PiggyBank, Plus, Calendar, ArrowRight, X, Edit, Trash2, Repeat } from 'lucide-react';
+import { PiggyBank, Plus, Calendar, ArrowRight, ArrowLeft, X, Edit, Trash2, Repeat, ChevronRight } from 'lucide-react';
 import { Account, Wallet, WalletEnvelope, Transaction, RecurrenceFrequency, PayoutFrequency, FamilyGoal, FamilyMember, TransactionType } from '../types';
 import { formatCurrency, formatCompactNumber, cn, getMonthlyCommitment } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
@@ -15,10 +15,11 @@ import { FINANCIAL_CATEGORIES, CategoryName } from '../constants';
 interface SavingsProps {
   accounts: Account[];
   transactions: Transaction[];
-  viewGroup?: 'savings' | 'deposits' | 'loans';
+  viewGroup?: 'savings' | 'deposits' | 'loans' | 'investments';
+  onBack?: () => void;
 }
 
-export default function Savings({ accounts, transactions, viewGroup }: SavingsProps) {
+export default function Savings({ accounts, transactions, viewGroup, onBack }: SavingsProps) {
   const { user, holdings, wallet, familyGoals } = useFirebase();
   const [activeTab, setActiveTab] = useState<'wallet' | 'accounts' | 'recurring'>(viewGroup ? 'accounts' : 'wallet');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -506,8 +507,21 @@ export default function Savings({ accounts, transactions, viewGroup }: SavingsPr
   const resetForm = () => {
     setName('');
     setAmt('');
-    setCategory('savings');
-    setType('savings');
+    
+    if (viewGroup === 'loans') {
+      setCategory('loan');
+      setType('loan');
+    } else if (viewGroup === 'deposits') {
+      setCategory('savings');
+      setType('fd');
+    } else if (viewGroup === 'investments') {
+      setCategory('investment');
+      setType('ppf');
+    } else {
+      setCategory('savings');
+      setType('savings');
+    }
+
     setBank('');
     setRate('');
     setGoal('');
@@ -545,6 +559,18 @@ export default function Savings({ accounts, transactions, viewGroup }: SavingsPr
         confirmText="Delete"
         type="danger"
       />
+
+      {onBack && viewGroup && (
+        <div className="flex items-center gap-4 px-2">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Vault</span>
+        </div>
+      )}
 
       {/* Tabs */}
       {!viewGroup && (
@@ -622,23 +648,30 @@ export default function Savings({ accounts, transactions, viewGroup }: SavingsPr
               value={type}
               onChange={(e) => setType(e.target.value as any)}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
-              disabled={viewGroup === 'savings' || viewGroup === 'loans'}
+              disabled={viewGroup === 'savings' || viewGroup === 'loans' || viewGroup === 'investments' && category !== 'investment'}
             >
               {(category === 'savings' && !viewGroup) && (
                 <>
-                  <option value="savings">Savings Account</option>
+                  <option value="savings">Savings / Salary Account</option>
                   <option value="fd">Fixed Deposit (FD)</option>
                   <option value="rd">Recurring Deposit (RD)</option>
                 </>
               )}
-              {viewGroup === 'savings' && <option value="savings">Savings Account</option>}
+              {viewGroup === 'savings' && <option value="savings">Savings / Salary Account</option>}
               {viewGroup === 'deposits' && (
                 <>
                   <option value="fd">Fixed Deposit (FD)</option>
                   <option value="rd">Recurring Deposit (RD)</option>
                 </>
               )}
-              {(category === 'investment' && viewGroup !== 'deposits') && (
+              {viewGroup === 'investments' && (
+                <>
+                  <option value="ppf">Public Provident Fund (PPF)</option>
+                  <option value="nps">National Pension System (NPS)</option>
+                  <option value="epf">Employees' Provident Fund (EPF)</option>
+                </>
+              )}
+              {(category === 'investment' && !viewGroup) && (
                 <>
                   <option value="ppf">Public Provident Fund (PPF)</option>
                   <option value="nps">National Pension System (NPS)</option>
@@ -1131,7 +1164,8 @@ export default function Savings({ accounts, transactions, viewGroup }: SavingsPr
             <h2 className="font-display font-extrabold text-xl">
               {viewGroup === 'savings' ? 'Savings & Salary' : 
                viewGroup === 'deposits' ? 'Deposits (FD/RD)' : 
-               viewGroup === 'loans' ? 'Loans & Debt' : 'Virtual Accounts'}
+               viewGroup === 'loans' ? 'Loans & Debt' : 
+               viewGroup === 'investments' ? 'Long-term Investments' : 'Virtual Accounts'}
             </h2>
             <button 
               onClick={() => { setEditingAccount(null); resetForm(); setError(null); setIsAddModalOpen(true); }}
@@ -1145,7 +1179,7 @@ export default function Savings({ accounts, transactions, viewGroup }: SavingsPr
             {(!viewGroup || viewGroup === 'savings') && <AccountStat label="Savings" value={formatCurrency(savingsTotal)} color="text-emerald-600" />}
             {(!viewGroup || viewGroup === 'deposits') && <AccountStat label="FD Corpus" value={formatCurrency(fdTotal)} color="text-amber-600" />}
             {(!viewGroup || viewGroup === 'deposits') && <AccountStat label="RD Corpus" value={formatCurrency(rdTotal)} color="text-purple-600" />}
-            {(!viewGroup) && <AccountStat label="Tax Savings" value={formatCurrency(taxSavingTotal)} color="text-indigo-600" />}
+            {(!viewGroup || viewGroup === 'investments') && <AccountStat label="Tax Savings" value={formatCurrency(taxSavingTotal)} color="text-indigo-600" />}
             {(!viewGroup || viewGroup === 'loans') && <AccountStat label="Outstanding" value={formatCurrency(loanTotal)} color="text-red-600" />}
           </div>
 
@@ -1156,6 +1190,7 @@ export default function Savings({ accounts, transactions, viewGroup }: SavingsPr
                 if (viewGroup === 'savings') return acc.type === 'savings';
                 if (viewGroup === 'deposits') return acc.type === 'fd' || acc.type === 'rd';
                 if (viewGroup === 'loans') return acc.type === 'loan';
+                if (viewGroup === 'investments') return ['ppf', 'nps', 'epf'].includes(acc.type);
                 return true;
               })
               .map(acc => (
@@ -1217,8 +1252,11 @@ function EnvelopeCard({ icon, name, spent, budget, color }: { icon: string, name
   };
 
   return (
-    <div className="glass-card p-4 rounded-2xl relative overflow-hidden">
-      <div className="text-2xl mb-2">{icon}</div>
+    <div className="glass-card p-4 rounded-2xl relative overflow-hidden group cursor-pointer" onClick={() => window.dispatchEvent(new CustomEvent('openWalletModal'))}>
+      <div className="flex justify-between items-start mb-2">
+        <div className="text-2xl">{icon}</div>
+        <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-600 transition-all" />
+      </div>
       <p className="text-[10px] font-bold text-slate-500 mb-2">{name}</p>
       <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden mb-2">
         <div className={cn("h-full rounded-full", colors[color])} style={{ width: `${pct}%` }}></div>
@@ -1272,6 +1310,7 @@ function ScheduledItem({ day, month, name, amount, status, lastProcessed, linked
             Upcoming
           </span>
         </div>
+        <ChevronRight size={14} className="text-slate-300 group-hover:text-indigo-600 transition-all" />
         {onDelete && (
           <button 
             onClick={onDelete}

@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Calculator, TrendingUp, ArrowRight, Zap, Info, RefreshCw, Landmark } from 'lucide-react';
+import { Calculator, TrendingUp, ArrowRight, Zap, Info, RefreshCw, Landmark, ArrowLeft, Settings2 } from 'lucide-react';
 import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-export default function ScenarioSimulator() {
+export default function ScenarioSimulator({ onBack }: { onBack?: () => void }) {
   const [sip, setSip] = useState(10000);
   const [extraSip, setExtraSip] = useState(5000);
   const [years, setYears] = useState(10);
@@ -39,6 +39,17 @@ export default function ScenarioSimulator() {
 
   return (
     <div className="space-y-6">
+      {onBack && (
+        <div className="flex items-center gap-4 px-2">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Insights</span>
+        </div>
+      )}
       <div className="px-2 pt-2">
         <h2 className="font-display font-extrabold text-3xl text-slate-900 flex items-center gap-2">
           What-If Simulator 🚀
@@ -181,5 +192,3 @@ export default function ScenarioSimulator() {
     </div>
   );
 }
-
-import { Settings2 } from 'lucide-react';

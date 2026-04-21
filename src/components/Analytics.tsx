@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, LineChart, Line } from 'recharts';
 import { Transaction, Holding } from '../types';
 import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
-import { Heart, Coffee, Fingerprint, Zap, TrendingUp, ShieldCheck, Wallet, Activity } from 'lucide-react';
+import { Heart, Coffee, Fingerprint, Zap, TrendingUp, ShieldCheck, Wallet, Activity, ArrowLeft } from 'lucide-react';
 import SubscriptionManager from './SubscriptionManager';
 
 interface AnalyticsProps {
   transactions: Transaction[];
   holdings: Holding[];
+  onBack?: () => void;
 }
 
-export default function Analytics({ transactions, holdings }: AnalyticsProps) {
+export default function Analytics({ transactions, holdings, onBack }: AnalyticsProps) {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const currentMonthTransactions = transactions.filter(t => !t.isRecurring && t.date.startsWith(currentMonth));
 
@@ -66,7 +67,18 @@ export default function Analytics({ transactions, holdings }: AnalyticsProps) {
   const healthScore = Math.min(100, Math.max(0, savingsRate + (holdings.length > 0 ? 30 : 0) + (transactions.length > 10 ? 20 : 0)));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-slate-900">
+      {onBack && (
+        <div className="flex items-center gap-4 px-2">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Insights</span>
+        </div>
+      )}
       <div className="px-2">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">6-month overview</p>
         <h2 className="font-display font-extrabold text-2xl">Analytics</h2>

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { formatCurrency, formatCompactNumber, cn, triggerConfetti } from '../lib/utils';
-import { Plus, Share2, ArrowUpRight, ArrowDownLeft, Receipt, History, Trash2, Send } from 'lucide-react';
+import { Plus, Share2, ArrowUpRight, ArrowDownLeft, Receipt, History, Trash2, Send, ArrowLeft } from 'lucide-react';
 import Modal from './Modal';
 import { Split, FamilyMember } from '../types';
 import { useFirebase } from '../lib/FirebaseProvider';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 
-export default function SmartSplit() {
+export default function SmartSplit({ onBack }: { onBack?: () => void }) {
   const { user, familyMembers, splits } = useFirebase();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [billName, setBillName] = useState('');
@@ -118,6 +118,17 @@ export default function SmartSplit() {
 
   return (
     <div className="space-y-4 md:space-y-6">
+      {onBack && (
+        <div className="flex items-center gap-4 px-2">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Space</span>
+        </div>
+      )}
       <div className="px-1 sm:px-0 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Group Budgeting</p>

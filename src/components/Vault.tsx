@@ -35,7 +35,7 @@ export default function Vault({ accounts, holdings, wallet, setActiveTab }: Vaul
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {/* Wallet Card */}
         <motion.div 
           onClick={() => window.dispatchEvent(new CustomEvent('openWalletModal'))}
@@ -43,24 +43,24 @@ export default function Vault({ accounts, holdings, wallet, setActiveTab }: Vaul
           initial="hidden"
           animate="visible"
           transition={{ duration: 0.3, delay: 0.0 }}
-          className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+          className="bg-white p-4 md:p-6 rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
         >
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
-              <Wallet size={24} />
+          <div className="flex justify-between items-start mb-3 md:mb-6">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+              <Wallet size={20} className="md:w-6 md:h-6" />
             </div>
-            <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-indigo-50 transition-colors">
-              <ArrowRight size={16} className="text-slate-400 group-hover:text-indigo-600" />
+            <div className="p-1.5 md:p-2 bg-slate-50 rounded-lg md:rounded-xl group-hover:bg-indigo-50 transition-colors">
+              <ArrowRight size={12} className="text-slate-400 group-hover:text-indigo-600 md:w-4 md:h-4" />
             </div>
           </div>
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Monthly Wallet</p>
-            <h3 className="font-display font-black text-2xl text-slate-900 mb-2">
-              {wallet?.active ? <span className="text-emerald-600">Active</span> : <span className="text-slate-400">Not Setup</span>}
+            <p className="text-[9px] md:text-xs font-black uppercase tracking-widest text-slate-400 mb-0.5 md:mb-1">Monthly Wallet</p>
+            <h3 className="font-display font-black text-lg md:text-2xl text-slate-900 mb-1 md:mb-2 leading-tight">
+              {wallet?.active ? <span className="text-emerald-600">Active</span> : <span className="text-slate-400 text-sm">Setup</span>}
             </h3>
             {wallet?.active && (
-              <p className="text-sm font-medium text-slate-500">
-                Free Balance: <strong>₹{formatCurrency(wallet.free)}</strong>
+              <p className="text-[10px] md:text-sm font-medium text-slate-500 truncate">
+                ₹{formatCurrency(wallet.free)}
               </p>
             )}
           </div>
@@ -70,31 +70,28 @@ export default function Vault({ accounts, holdings, wallet, setActiveTab }: Vaul
         <motion.div 
           onClick={() => {
             setActiveTab('savings_view');
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('openAddAccountModal', { detail: { type: 'savings' } }));
-            }, 300);
           }}
           variants={cardVariants}
           initial="hidden"
           animate="visible"
           transition={{ duration: 0.3, delay: 0.1 }}
-          className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+          className="bg-white p-4 md:p-6 rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
         >
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
-              <PiggyBank size={24} />
+          <div className="flex justify-between items-start mb-3 md:mb-6">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+              <PiggyBank size={20} className="md:w-6 md:h-6" />
             </div>
-            <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-emerald-50 transition-colors">
-              <ArrowRight size={16} className="text-slate-400 group-hover:text-emerald-600" />
+            <div className="p-1.5 md:p-2 bg-slate-50 rounded-lg md:rounded-xl group-hover:bg-emerald-50 transition-colors">
+              <ArrowRight size={12} className="text-slate-400 group-hover:text-emerald-600 md:w-4 md:h-4" />
             </div>
           </div>
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Savings & Salary</p>
-            <h3 className="font-display font-black text-2xl text-slate-900 mb-2">
+            <p className="text-[9px] md:text-xs font-black uppercase tracking-widest text-slate-400 mb-0.5 md:mb-1">Savings</p>
+            <h3 className="font-display font-black text-lg md:text-2xl text-slate-900 mb-1 md:mb-2 leading-tight">
               ₹{formatCompactNumber(savingsBalance)}
             </h3>
-            <p className="text-sm font-medium text-slate-500">
-              {accounts.filter(a => a.type === 'savings').length} active account(s)
+            <p className="text-[10px] md:text-sm font-medium text-slate-500">
+              {accounts.filter(a => a.type === 'savings').length} a/c
             </p>
           </div>
         </motion.div>
@@ -103,31 +100,28 @@ export default function Vault({ accounts, holdings, wallet, setActiveTab }: Vaul
         <motion.div 
           onClick={() => {
             setActiveTab('deposits_view');
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('openAddAccountModal', { detail: { type: 'fd' } }));
-            }, 300);
           }}
           variants={cardVariants}
           initial="hidden"
           animate="visible"
           transition={{ duration: 0.3, delay: 0.2 }}
-          className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+          className="bg-white p-4 md:p-6 rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
         >
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-              <Landmark size={24} />
+          <div className="flex justify-between items-start mb-3 md:mb-6">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+              <Landmark size={20} className="md:w-6 md:h-6" />
             </div>
-            <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-blue-50 transition-colors">
-              <ArrowRight size={16} className="text-slate-400 group-hover:text-blue-600" />
+            <div className="p-1.5 md:p-2 bg-slate-50 rounded-lg md:rounded-xl group-hover:bg-blue-50 transition-colors">
+              <ArrowRight size={12} className="text-slate-400 group-hover:text-blue-600 md:w-4 md:h-4" />
             </div>
           </div>
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Deposits (FD & RD)</p>
-            <h3 className="font-display font-black text-2xl text-slate-900 mb-2">
+            <p className="text-[9px] md:text-xs font-black uppercase tracking-widest text-slate-400 mb-0.5 md:mb-1">Deposits</p>
+            <h3 className="font-display font-black text-lg md:text-2xl text-slate-900 mb-1 md:mb-2 leading-tight">
               ₹{formatCompactNumber(depositsBalance)}
             </h3>
-            <p className="text-sm font-medium text-slate-500">
-              {accounts.filter(a => ['fd', 'rd'].includes(a.type)).length} active deposit(s)
+            <p className="text-[10px] md:text-sm font-medium text-slate-500">
+              {accounts.filter(a => ['fd', 'rd'].includes(a.type)).length} active
             </p>
           </div>
         </motion.div>
@@ -136,36 +130,63 @@ export default function Vault({ accounts, holdings, wallet, setActiveTab }: Vaul
         <motion.div 
           onClick={() => {
             setActiveTab('loans_view');
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('openAddAccountModal', { detail: { type: 'loan' } }));
-            }, 300);
           }}
           variants={cardVariants}
           initial="hidden"
           animate="visible"
           transition={{ duration: 0.3, delay: 0.3 }}
-          className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+          className="bg-white p-4 md:p-6 rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
         >
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center text-red-600 group-hover:scale-110 transition-transform">
-              <ArrowDownRight size={24} />
+          <div className="flex justify-between items-start mb-3 md:mb-6">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-red-50 flex items-center justify-center text-red-600 group-hover:scale-110 transition-transform">
+              <ArrowDownRight size={20} className="md:w-6 md:h-6" />
             </div>
-            <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-red-50 transition-colors">
-              <ArrowRight size={16} className="text-slate-400 group-hover:text-red-600" />
+            <div className="p-1.5 md:p-2 bg-slate-50 rounded-lg md:rounded-xl group-hover:bg-red-50 transition-colors">
+              <ArrowRight size={12} className="text-slate-400 group-hover:text-red-600 md:w-4 md:h-4" />
             </div>
           </div>
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Loans & Debt</p>
-            <h3 className="font-display font-black text-2xl text-slate-900 mb-2">
+            <p className="text-[9px] md:text-xs font-black uppercase tracking-widest text-slate-400 mb-0.5 md:mb-1">Loans & Debt</p>
+            <h3 className="font-display font-black text-lg md:text-2xl text-slate-900 mb-1 md:mb-2 leading-tight">
               ₹{formatCompactNumber(loansBalance)}
             </h3>
-            <p className="text-sm font-medium text-slate-500">
-              {accounts.filter(a => a.type === 'loan').length} active loan(s)
+            <p className="text-[10px] md:text-sm font-medium text-slate-500">
+              {accounts.filter(a => a.type === 'loan').length} active
             </p>
           </div>
         </motion.div>
 
-        {/* Investments Card */}
+        {/* PF & Pensions Card */}
+        <motion.div 
+          onClick={() => {
+            setActiveTab('investments_view');
+          }}
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ duration: 0.3, delay: 0.4 }}
+          className="bg-white p-4 md:p-6 rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        >
+          <div className="flex justify-between items-start mb-3 md:mb-6">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+              <Shield size={20} className="md:w-6 md:h-6" />
+            </div>
+            <div className="p-1.5 md:p-2 bg-slate-50 rounded-lg md:rounded-xl group-hover:bg-indigo-50 transition-colors">
+              <ArrowRight size={12} className="text-slate-400 group-hover:text-indigo-600 md:w-4 md:h-4" />
+            </div>
+          </div>
+          <div>
+            <p className="text-[9px] md:text-xs font-black uppercase tracking-widest text-slate-400 mb-0.5 md:mb-1">PF & Pensions</p>
+            <h3 className="font-display font-black text-lg md:text-2xl text-slate-900 mb-1 md:mb-2 leading-tight">
+              ₹{formatCompactNumber(pfBalance)}
+            </h3>
+            <p className="text-[10px] md:text-sm font-medium text-slate-500">
+              {accounts.filter(a => ['ppf', 'nps', 'epf'].includes(a.type)).length} active
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Portfolio Card */}
         <motion.div 
           onClick={() => {
             setActiveTab('portfolio');
@@ -173,24 +194,24 @@ export default function Vault({ accounts, holdings, wallet, setActiveTab }: Vaul
           variants={cardVariants}
           initial="hidden"
           animate="visible"
-          transition={{ duration: 0.3, delay: 0.4 }}
-          className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer md:col-span-2 group"
+          transition={{ duration: 0.3, delay: 0.5 }}
+          className="bg-white p-4 md:p-6 rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer md:col-span-2 group"
         >
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
-              <TrendingUp size={24} />
+          <div className="flex justify-between items-start mb-3 md:mb-6">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
+              <TrendingUp size={20} className="md:w-6 md:h-6" />
             </div>
-            <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-purple-50 transition-colors">
-              <ArrowRight size={16} className="text-slate-400 group-hover:text-purple-600" />
+            <div className="p-1.5 md:p-2 bg-slate-50 rounded-lg md:rounded-xl group-hover:bg-purple-50 transition-colors">
+              <ArrowRight size={12} className="text-slate-400 group-hover:text-purple-600 md:w-4 md:h-4" />
             </div>
           </div>
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Investments & Portfolios</p>
-            <h3 className="font-display font-black text-3xl text-slate-900 mb-2">
-              ₹{formatCompactNumber(totalInvestments)}
+            <p className="text-[9px] md:text-xs font-black uppercase tracking-widest text-slate-400 mb-0.5 md:mb-1">Portfolio</p>
+            <h3 className="font-display font-black text-lg md:text-3xl text-slate-900 mb-1 md:mb-2 leading-tight">
+              ₹{formatCompactNumber(holdingsBalance)}
             </h3>
-            <p className="text-sm font-medium text-slate-500">
-              Includes {accounts.filter(a => ['ppf', 'nps', 'epf'].includes(a.type)).length} PF accounts and your market portfolios
+            <p className="text-[10px] md:text-sm font-medium text-slate-500">
+              Stocks, Mutual Funds & ETFs
             </p>
           </div>
         </motion.div>

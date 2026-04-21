@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Mic, Filter, MicOff, X, Trash2, Repeat, Camera } from 'lucide-react';
+import { Search, Plus, Mic, Filter, MicOff, X, Trash2, Repeat, Camera, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Transaction, RecurrenceFrequency, Wallet as WalletType, TransactionType } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
@@ -15,9 +15,10 @@ import { FINANCIAL_CATEGORIES, CategoryName } from '../constants';
 interface TransactionsProps {
   transactions: Transaction[];
   wallet: WalletType | null;
+  onBack?: () => void;
 }
 
-export default function Transactions({ transactions, wallet }: TransactionsProps) {
+export default function Transactions({ transactions, wallet, onBack }: TransactionsProps) {
   const { user, accounts, holdings, fines } = useFirebase();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -71,7 +72,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
 
   useEffect(() => {
     // If the currently selected category is Expenses and the subCategory is not in our dynamic list, reset it.
-    if (category === 'Expenses' && !expenseSubCategories.includes(subCategory)) {
+    if (category === 'Expenses' && !(expenseSubCategories as string[]).includes(subCategory)) {
       setSubCategory(expenseSubCategories[0] || 'Groceries');
     }
   }, [category, expenseSubCategories, subCategory]);
@@ -146,6 +147,12 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
         savings: '🏦'
       };
 
+      const txDateObj = new Date(date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const isFuture = txDateObj > today;
+      const isSameMonth = txDateObj.getMonth() === today.getMonth() && txDateObj.getFullYear() === today.getFullYear();
+
       const txData: any = {
         uid: user.uid,
         name,
@@ -162,6 +169,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
         isCapitalGain,
         gainType: isCapitalGain ? gainType : null,
         linkedAcc: fundSource,
+        status: isFuture ? 'scheduled' : 'completed',
         createdAt: new Date().toISOString()
       };
 
@@ -189,10 +197,17 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
         if (fundSource === 'wallet' && wallet) {
           const walletRef = doc(db, 'wallets', user.uid);
           
-          const updates: any = {
-            balance: increment(finalAmount),
-            free: increment(finalAmount)
-          };
+          const updates: any = {};
+
+          if (!isFuture) {
+            // Past or Present: Full debit
+            updates.balance = increment(finalAmount);
+            updates.free = increment(finalAmount);
+          } else if (isSameMonth) {
+            // Future of current month: Hold (Reserve)
+            updates.free = increment(finalAmount);
+            updates.committed = increment(Math.abs(finalAmount));
+          }
 
           if (type === 'expense' || type === 'debt') {
             const envEntry = Object.entries(wallet.envelopes).find(([_, env]) => 
@@ -399,6 +414,17 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
 
   return (
     <div className="space-y-4 md:space-y-6">
+      {onBack && (
+        <div className="flex items-center gap-4 px-1 sm:px-0">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Hub</span>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 px-1 sm:px-0">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{currentMonthName}</p>
@@ -905,6 +931,7 @@ export default function Transactions({ transactions, wallet }: TransactionsProps
               )}>
                 {tx.amount > 0 ? '+' : ''}{formatCurrency(tx.amount)}
               </div>
+              <ChevronRight size={16} className="text-slate-300 md:opacity-0 md:group-hover:opacity-100 transition-all shrink-0" />
               <button 
                 onClick={(e) => { e.stopPropagation(); setTxToDelete(tx); }}
                 className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-2 text-slate-300 hover:text-red-500 transition-all shrink-0"

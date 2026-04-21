@@ -11,7 +11,8 @@ import {
   ArrowUpRight,
   HelpCircle,
   PieChart as PieChartIcon,
-  BarChart3
+  BarChart3,
+  ArrowLeft
 } from 'lucide-react';
 import { TaxProfile, TaxRegime } from '../types';
 import { cn, formatCurrency, formatCompactNumber } from '../lib/utils';
@@ -28,7 +29,7 @@ import {
   Legend
 } from 'recharts';
 
-export default function TaxPlanner() {
+export default function TaxPlanner({ onBack }: { onBack?: () => void }) {
   const [profile, setProfile] = useState<TaxProfile>({
     regime: 'new',
     annualIncome: 1200000,
@@ -121,6 +122,17 @@ export default function TaxPlanner() {
 
   return (
     <div className="space-y-8 pb-10">
+      {onBack && (
+        <div className="flex items-center gap-4 px-2">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Insights</span>
+        </div>
+      )}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">

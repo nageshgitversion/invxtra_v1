@@ -11,11 +11,13 @@ import {
   User,
   Calendar,
   Users,
+  Grid2X2,
   Settings,
   Calculator,
   Zap,
   Home,
-  Landmark
+  Landmark,
+  Lightbulb
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
@@ -36,11 +38,9 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const navItems = [
     { id: 'home', label: 'Home', icon: LayoutDashboard },
     { id: 'vault', label: 'Vault', icon: Landmark },
-    { id: 'household', label: 'Household', icon: Home },
-    { id: 'split', label: 'Split', icon: Users },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    ...(isTaxSeason ? [{ id: 'taxplanner', label: 'Tax', icon: Calculator }] : []),
-    { id: 'simulator', label: 'WHAT-IF', icon: Zap },
+    { id: 'cashflow', label: 'Cash Flow', icon: ReceiptIndianRupee },
+    { id: 'space', label: 'Space', icon: Grid2X2 },
+    { id: 'insights', label: 'Insights', icon: Lightbulb },
     { id: 'planner', label: 'Planner', icon: Calendar },
     { id: 'aichat', label: 'AI Chat', icon: Sparkles, badge: 1 },
     { id: 'profile', label: 'Profile', icon: User },
@@ -55,7 +55,11 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
       <div className="flex flex-col gap-1.5 overflow-y-auto no-scrollbar flex-1 -mx-2 px-2">
         {navItems.map((item) => {
-          const isActive = activeTab === item.id || (item.id === 'vault' && ['savings', 'portfolio', 'savings_view', 'deposits_view', 'loans_view'].includes(activeTab));
+          const isActive = activeTab === item.id || 
+            (item.id === 'vault' && ['savings', 'portfolio', 'savings_view', 'deposits_view', 'loans_view', 'investments_view'].includes(activeTab)) ||
+            (item.id === 'cashflow' && ['transactions', 'reports'].includes(activeTab)) ||
+            (item.id === 'space' && ['household', 'split'].includes(activeTab)) ||
+            (item.id === 'insights' && ['analytics', 'taxplanner', 'simulator'].includes(activeTab));
           return (
           <button
             key={item.id}

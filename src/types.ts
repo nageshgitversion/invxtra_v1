@@ -21,6 +21,7 @@ export interface Transaction {
   taxSection?: string; // e.g., '80C', '80D'
   isCapitalGain?: boolean;
   gainType?: 'LTCG' | 'STCG';
+  status?: 'completed' | 'scheduled';
 }
 
 export interface Holding {

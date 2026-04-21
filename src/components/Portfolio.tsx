@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, Plus, RefreshCw, ArrowRight, Share2, X, CheckCircle2, Trash2, Edit2 } from 'lucide-react';
+import { TrendingUp, Plus, RefreshCw, ArrowRight, ArrowLeft, Share2, X, CheckCircle2, Trash2, Edit2, ChevronRight } from 'lucide-react';
 import { Holding } from '../types';
 import { formatCurrency, formatCompactNumber, cn } from '../lib/utils';
 import { useFirebase } from '../lib/FirebaseProvider';
@@ -11,9 +11,10 @@ import Modal from './Modal';
 interface PortfolioProps {
   holdings: Holding[];
   setActiveTab?: (tab: string) => void;
+  onBack?: () => void;
 }
 
-export default function Portfolio({ holdings, setActiveTab }: PortfolioProps) {
+export default function Portfolio({ holdings, setActiveTab, onBack }: PortfolioProps) {
   const { user } = useFirebase();
   const [filter, setFilter] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -226,6 +227,17 @@ export default function Portfolio({ holdings, setActiveTab }: PortfolioProps) {
 
   return (
     <div className="space-y-6">
+      {onBack && (
+        <div className="flex items-center gap-4 px-2">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Vault</span>
+        </div>
+      )}
       <div className="flex justify-between items-end px-2">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
@@ -234,21 +246,6 @@ export default function Portfolio({ holdings, setActiveTab }: PortfolioProps) {
           <h2 className="font-display font-extrabold text-2xl">Portfolio</h2>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
-          <button 
-            onClick={() => {
-              if (setActiveTab) {
-                setActiveTab('savings');
-                setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent('openAddAccountModal', { detail: { type: 'ppf' } }));
-                }, 300);
-              } else {
-                window.dispatchEvent(new CustomEvent('openAddAccountModal', { detail: { type: 'ppf' } }));
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-100 bg-white text-emerald-600 font-display font-bold text-xs shadow-sm transition-all hover:bg-emerald-50"
-          >
-            <Plus size={14} /> Add PF/NPS
-          </button>
           <button 
             onClick={handleSync}
             disabled={isSyncing || holdings.length === 0}
@@ -537,8 +534,8 @@ export default function Portfolio({ holdings, setActiveTab }: PortfolioProps) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filteredHoldings.map(h => (
-                  <tr key={h.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-6 py-4 cursor-pointer" onClick={() => handleEditHolding(h)}>
+                  <tr key={h.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => handleEditHolding(h)}>
+                    <td className="px-6 py-4">
                       <p className="font-display font-bold text-sm text-slate-900">{h.name}</p>
                       <div className="flex items-center gap-2">
                         <p className="text-[10px] text-slate-400 font-medium">
@@ -571,16 +568,17 @@ export default function Portfolio({ holdings, setActiveTab }: PortfolioProps) {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-600 transition-all" />
                         <button 
-                          onClick={() => handleEditHolding(h)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                          onClick={(e) => { e.stopPropagation(); handleEditHolding(h); }}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all md:opacity-0 md:group-hover:opacity-100"
                           title="Edit"
                         >
                           <Edit2 size={14} />
                         </button>
                         <button 
-                          onClick={() => setHoldingToDelete(h)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          onClick={(e) => { e.stopPropagation(); setHoldingToDelete(h); }}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all md:opacity-0 md:group-hover:opacity-100"
                           title="Delete"
                         >
                           <Trash2 size={14} />

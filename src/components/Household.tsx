@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Plus, Target, ShieldCheck, Heart, Trash2, Link, Copy, Check, WalletCards, Coins, Landmark } from 'lucide-react';
+import { Users, Plus, Target, ShieldCheck, Heart, Trash2, Link, Copy, Check, WalletCards, Coins, Landmark, ArrowLeft } from 'lucide-react';
 import { useFirebase } from '../lib/FirebaseProvider';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, increment, writeBatch } from 'firebase/firestore';
@@ -8,7 +8,7 @@ import { formatCurrency, formatCompactNumber, triggerConfetti, cn } from '../lib
 import { motion } from 'motion/react';
 import Modal from './Modal';
 
-export default function Household() {
+export default function Household({ onBack }: { onBack?: () => void }) {
   const { user, userProfile, familyMembers, familyGoals, sharedEnvelopes, wallet } = useFirebase();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false);
@@ -224,6 +224,17 @@ export default function Household() {
 
   return (
     <div className="space-y-6 animate-in fade-in">
+      {onBack && (
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Space</span>
+        </div>
+      )}
       <div className="flex justify-between items-end">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Multi-Player Finance</p>

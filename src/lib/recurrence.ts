@@ -11,7 +11,42 @@ export async function processRecurringTransactions(
 ) {
   const now = new Date();
   
-  // Deduplicate templates by ID to prevent double processing
+  // 1. Process Scheduled One-Time Transactions
+  const oneTimeScheduled = transactions.filter(t => !t.isRecurring && t.status === 'scheduled');
+  for (const tx of oneTimeScheduled) {
+    const txDate = new Date(tx.date);
+    txDate.setHours(0, 0, 0, 0);
+    
+    if (txDate <= now) {
+      try {
+        const amount = tx.amount || 0;
+        
+        // Update Wallet Balance
+        if (tx.linkedAcc === 'wallet' && wallet) {
+          const walletRef = doc(db, 'wallets', uid);
+          await updateDoc(walletRef, {
+            balance: increment(amount),
+            committed: increment(-Math.abs(amount))
+          });
+        } else if (tx.linkedAcc && tx.linkedAcc !== 'external') {
+           // For non-wallet accounts, we already debited 'amt' when creating the scheduled record?
+           // Actually, currently Transactions.tsx only has Hold logic for WALLET.
+           // For other accounts, it's a direct debit (simpler for now).
+        }
+
+        // Mark as completed
+        await updateDoc(doc(db, 'transactions', tx.id), {
+          status: 'completed'
+        });
+        
+        console.log(`Processed scheduled one-time transaction: ${tx.name}`);
+      } catch (err) {
+        console.error(`Error processing scheduled transaction ${tx.id}:`, err);
+      }
+    }
+  }
+
+  // 2. Process Recurring Templates
   const templateMap = new Map<string, Transaction>();
   transactions.filter(t => t.isRecurring).forEach(t => {
     if (t.id) templateMap.set(t.id, t);
@@ -60,7 +95,8 @@ export async function processRecurringTransactions(
           if (template.type === 'income') {
             walletUpdates.free = increment(finalAmount);
           } else {
-            walletUpdates.committed = increment(finalAmount);
+            // Expenses/Debt: Decreases the assigned commitment
+            walletUpdates.committed = increment(-Math.abs(finalAmount));
           }
           
           await updateDoc(walletRef, walletUpdates);
